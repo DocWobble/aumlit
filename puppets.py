@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover - fallback
     torch = None
     _HAS_TORCH = False
 
-__all__ = ["text_emb", "latent", "vision_grid", "kv_cache_probe"]
+__all__ = ["text_emb", "latent", "vision_grid", "kv_cache_probe", "audio_mel"]
 
 
 def _randn(shape: Tuple[int, ...], dtype: str | None = None):
@@ -49,6 +49,12 @@ def vision_grid(profile: str):
     if shape is None:
         raise KeyError(f"unknown vision profile: {profile}")
     return _randn(shape)
+
+
+def audio_mel(frame_shape: Tuple[int, int, int]):
+    """Dummy audio mel-spectrogram ``[1, C, T, F]``."""
+    c, t, f = (int(x) for x in frame_shape)
+    return _randn((1, c, t, f))
 
 
 def kv_cache_probe(n_heads: int, d_head: int, t: int = 2, dtype: str | None = None):

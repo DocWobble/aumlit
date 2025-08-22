@@ -47,5 +47,5 @@ def test_run_pipeline_cli_format(tmp_path):
     ct_path, oblig_path, proof_path = run_pipeline(artifact, tmp_path, fmt="cli")
 
     assert "TEXT_EMB" in ct_path.read_text()
-    assert "TEXT_ENCODER" in oblig_path.read_text()
+    assert oblig_path.read_text() == ""
     assert "candidate" in proof_path.read_text()
