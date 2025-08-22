@@ -13,6 +13,7 @@ from multiprocessing import Process, Queue
 from pathlib import Path
 from typing import Any, Callable, Mapping
 import hashlib
+import json
 import os
 import resource
 
@@ -34,9 +35,36 @@ class Limits:
 class Sandbox:
     """Run engine helpers inside an isolated subprocess."""
 
-    def __init__(self, limits: Limits | None = None) -> None:
+    def __init__(self, limits: Limits | None = None, cache_dir: str | Path | None = None) -> None:
         self.limits = limits or Limits()
         self.cache: dict[tuple[str, str], tuple[str, Any]] = {}
+        self.cache_file: Path | None = None
+        if cache_dir is not None:
+            self.cache_file = Path(cache_dir) / "sandbox_cache.json"
+            self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                if self.cache_file.exists():
+                    data = json.loads(self.cache_file.read_text())
+                    for k, v in data.items():
+                        a, b = k.split(":", 1)
+                        self.cache[(a, b)] = tuple(v)  # type: ignore[assignment]
+            except Exception:  # pragma: no cover - corrupted cache
+                pass
+
+    def _save_cache(self) -> None:
+        if not self.cache_file:
+            return
+        data = {f"{k[0]}:{k[1]}": list(v) for k, v in self.cache.items()}
+        tmp = self.cache_file.with_suffix(".tmp")
+        try:
+            tmp.write_text(json.dumps(data))
+            tmp.replace(self.cache_file)
+        except Exception:  # pragma: no cover - write errors
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except Exception:
+                    pass
 
     # Child process -------------------------------------------------
     def _worker(self, fn: Callable[..., Any], q: Queue, *args: Any, **kwargs: Any) -> None:
@@ -94,6 +122,7 @@ class Sandbox:
         status, payload = q.get()
         if key is not None:
             self.cache[key] = (status, payload)
+            self._save_cache()
         if status == "ok":
             return payload
         raise RuntimeError(payload)
@@ -152,9 +181,11 @@ class Sandbox:
 
 
 # Factory -----------------------------------------------------------
-def spawn_sandbox(limits: Mapping[str, int | float] | None = None) -> Sandbox:
-    """Create a :class:`Sandbox` with ``limits``."""
+def spawn_sandbox(
+    limits: Mapping[str, int | float] | None = None, cache_dir: str | Path | None = None
+) -> Sandbox:
+    """Create a :class:`Sandbox` with ``limits`` and optional cache."""
 
     if limits is None:
-        return Sandbox()
-    return Sandbox(Limits(**limits))
+        return Sandbox(cache_dir=cache_dir)
+    return Sandbox(Limits(**limits), cache_dir=cache_dir)
