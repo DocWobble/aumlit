@@ -54,7 +54,16 @@ def contact_trace(hyp: Dict[str, Any], validation: Dict[str, Any] | None = None,
             parts.append(f"VAE(C={hyp['LATENT_C']},scale={hyp['LATENT_SCALE']})")
         if "VISION" in hyp:
             parts.append(f"VISION(profile={hyp['VISION']})")
-        return " -> ".join(parts) or "<empty>"
+        trace = " -> ".join(parts) or "<empty>"
+        if validation:
+            metrics: List[str] = []
+            if "time_ms" in validation:
+                metrics.append(f"{validation['time_ms']:.1f}ms")
+            if "vram_mb" in validation:
+                metrics.append(f"{validation['vram_mb']:.1f}MB")
+            if metrics:
+                trace = f"{trace} ({', '.join(metrics)})"
+        return trace
     raise ValueError(f"unknown format: {fmt}")
 
 
@@ -74,7 +83,7 @@ def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
     raise ValueError(f"unknown format: {fmt}")
 
 
-def proof(log: Iterable[str], fmt: str = "cli") -> Any:
+def proof(log: Iterable[str], validation: Dict[str, Any] | None = None, fmt: str = "cli") -> Any:
     """Render the proof transcript.
 
     ``log`` is expected to be an iterable of already-formatted lines.  By
@@ -82,8 +91,11 @@ def proof(log: Iterable[str], fmt: str = "cli") -> Any:
     list of lines suitable for serialising.
     """
 
+    lines = list(log)
+    if validation:
+        lines.append(f"validate {validation}")
     if fmt == "json":
-        return list(log)
+        return lines
     if fmt == "cli":
-        return "\n".join(log)
+        return "\n".join(lines)
     raise ValueError(f"unknown format: {fmt}")
