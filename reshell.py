@@ -82,8 +82,8 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
     return contact_trace_path, obligations_path, proof_path
 
 
-def main(artifact: str, out_dir: str = "out") -> None:
-    """Parse arguments and delegate to the probing pipeline.
+def _run(artifact: str, out_dir: str = "out") -> None:
+    """Delegate to the probing pipeline.
 
     Parameters
     ----------
@@ -99,10 +99,15 @@ def main(artifact: str, out_dir: str = "out") -> None:
     print(f"proof transcript written to: {proof_file}")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Entry-point for the console script."""
     parser = argparse.ArgumentParser(description="Probe a model artifact")
     parser.add_argument("--artifact", required=True, help="path to model artifact")
     parser.add_argument("--out", default="out", help="output directory for results")
     args = parser.parse_args()
 
-    main(args.artifact, args.out)
+    _run(args.artifact, args.out)
+
+
+if __name__ == "__main__":
+    main()
