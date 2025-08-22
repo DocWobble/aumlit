@@ -60,41 +60,100 @@ def _torch_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
 
 
 def _onnx_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
-    """Run a minimal ONNX inference step."""
+    """Run a minimal ONNX inference step and surface failures.
+
+    Any :mod:`onnxruntime` exception is intercepted and re-raised with
+    integers extracted from the error message.  This allows the caller to
+    mine hints such as expected channel counts or embedding dimensions.
+    """
 
     import numpy as np
     import onnxruntime as ort
+    import re
 
-    sess = ort.InferenceSession(str(artifact))
-    input_name = sess.get_inputs()[0].name
-    data = next(iter(inputs.values()))
-    if hasattr(data, "numpy"):
-        data = data.numpy()
-    sess.run(None, {input_name: np.asarray(data)})
+    try:
+        sess = ort.InferenceSession(str(artifact))
+        input_name = sess.get_inputs()[0].name
+        data = next(iter(inputs.values()))
+        if hasattr(data, "numpy"):
+            data = data.numpy()
+        sess.run(None, {input_name: np.asarray(data)})
+    except Exception as e:  # pragma: no cover - depends on runtime errors
+        ints = re.findall(r"\d+", str(e))
+        if ints:
+            raise RuntimeError("ONNX_FAIL: " + " ".join(ints)) from e
+        raise
     return "ok"
 
 
 def _llama_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
-    """Placeholder for llama.cpp probing.
+    """Run a minimal llama.cpp step via :mod:`llama_cpp`.
 
-    We do not invoke the actual library here but ensure the artifact can be
-    opened.  This keeps the interface compatible for future integration.
+    The model's metadata is read when instantiating :class:`llama_cpp.Llama`.
+    We then perform a single evaluation step with a provided ``token_id``
+    (default ``0``).  Any exceptions are re-raised with extracted integers to
+    aid hypothesis updates.
     """
 
-    with open(artifact, "rb"):
-        pass
-    _ = inputs
+    import re
+    try:
+        from llama_cpp import Llama
+    except Exception as e:  # pragma: no cover - optional dependency
+        raise RuntimeError("LLAMA_CPP_MISSING") from e
+
+    token_id = int(inputs.get("token_id", 0))
+    try:
+        llm = Llama(model_path=str(artifact), n_ctx=16, n_gpu_layers=0)
+        llm.eval([token_id])  # one-step evaluation
+    except Exception as e:  # pragma: no cover - runtime failure path
+        ints = re.findall(r"\d+", str(e))
+        if ints:
+            raise RuntimeError("LLAMA_FAIL: " + " ".join(ints)) from e
+        raise
+    return "ok"
+
+
+def _xformers_attention_probe() -> str:
+    """Attempt a tiny xFormers memory-efficient attention call.
+
+    If xFormers is not available, the probe is silently skipped.  Any runtime
+    failures include integer hints extracted from the exception message.
+    """
+
+    try:  # pragma: no cover - optional dependency
+        import torch
+        import xformers.ops as xops
+    except Exception:
+        return "skip"
+
+    q = torch.randn(1, 2, 1, 32, dtype=torch.float16)
+    k = torch.randn(1, 2, 1, 32, dtype=torch.float16)
+    v = torch.randn(1, 2, 1, 32, dtype=torch.float16)
+
+    import re
+
+    try:
+        xops.memory_efficient_attention(q, k, v)
+    except Exception as e:  # pragma: no cover - layout/type mismatches
+        ints = re.findall(r"\d+", str(e))
+        if ints:
+            raise RuntimeError("XFORMERS_FAIL: " + " ".join(ints)) from e
+        raise
     return "ok"
 
 
 def _probe_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
-    """Dispatch to the appropriate engine helper."""
+    """Dispatch to the appropriate engine helper and xFormers probe."""
 
     suffix = artifact.suffix.lower()
     if suffix == ".onnx":
         return _onnx_engine_forward(artifact, inputs)
     if suffix == ".gguf":
         return _llama_engine_forward(artifact, inputs)
+    try:
+        _xformers_attention_probe()
+    except Exception:
+        pass
     return _torch_engine_forward(artifact, inputs)
 
 
