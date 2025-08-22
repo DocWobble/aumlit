@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Mapping, Tuple
 
 from classifier import parse_reason
 
@@ -20,6 +20,69 @@ from planner import Planner
 from printers import contact_trace, obligations, proof
 from puppets import latent, text_emb, vision_grid
 from sandbox import spawn_sandbox
+
+
+def _parse_assignments(spec: str | None) -> Dict[str, str]:
+    """Parse comma-separated ``key=value`` pairs into a dict."""
+
+    result: Dict[str, str] = {}
+    if not spec:
+        return result
+    for part in spec.split(","):
+        if "=" not in part:
+            continue
+        key, val = part.split("=", 1)
+        result[key.strip()] = val.strip()
+    return result
+
+
+def _parse_guess(guess: str | None) -> Dict[str, Any]:
+    """Parse ``--guess`` into hypothesis overrides."""
+
+    mapping = {
+        "d": "TEXT_EMB_d",
+        "C": "LATENT_C",
+        "head": "HEAD",
+        "scale": "LATENT_SCALE",
+        "vision": "VISION",
+    }
+    result: Dict[str, Any] = {}
+    for key, val in _parse_assignments(guess).items():
+        hyp_key = mapping.get(key, key)
+        try:
+            result[hyp_key] = int(val)
+        except ValueError:
+            result[hyp_key] = val
+    return result
+
+
+def _parse_limits(limits: str | None) -> Dict[str, int | float]:
+    """Parse ``--limits`` into ``spawn_sandbox`` kwargs."""
+
+    result: Dict[str, int | float] = {}
+    for key, val in _parse_assignments(limits).items():
+        lk = key.strip()
+        lv = val.strip().lower()
+        if lk == "timeout":
+            if lv.endswith("s"):
+                lv = lv[:-1]
+            try:
+                result["timeout"] = float(lv)
+            except ValueError:
+                pass
+        elif lk in {"vram", "cpu_mem"}:
+            mult = 1
+            if lv.endswith("gb"):
+                mult = 1024 ** 3
+                lv = lv[:-2]
+            elif lv.endswith("mb"):
+                mult = 1024 ** 2
+                lv = lv[:-2]
+            try:
+                result[lk] = int(float(lv) * mult)
+            except ValueError:
+                pass
+    return result
 
 
 def _read_meta(artifact: Path) -> Meta:
@@ -168,15 +231,23 @@ def _probe_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
     return _torch_engine_forward(artifact, inputs)
 
 
-def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
+def run_pipeline(
+    artifact: Path,
+    out_dir: Path,
+    guesses: Mapping[str, Any] | None = None,
+    limits: Mapping[str, int | float] | None = None,
+    fmt: str | None = None,
+) -> Tuple[Path, Path, Path]:
     """Run a tiny probing loop over candidate combinations."""
 
     out_dir.mkdir(parents=True, exist_ok=True)
     meta = _read_meta(artifact)
 
     hypotheses: Dict[str, Any] = dict(meta.hints)
+    if guesses:
+        hypotheses.update(guesses)
     planner = Planner(seed=hypotheses)
-    sandbox = spawn_sandbox({"timeout": 2.0})
+    sandbox = spawn_sandbox(limits)
 
     proof_log: list[str] = []
     validation: Dict[str, Any] | None = None
@@ -203,21 +274,27 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
                 planner.update(hypotheses)
             proof_log.append(f"candidate {combo} -> {reason}")
 
-    trace_json = contact_trace(hypotheses, validation, fmt="json")
-    oblig_json = obligations(hypotheses, fmt="json")
-    proof_text = proof(proof_log, validation, fmt="cli")
+    trace_out = contact_trace(hypotheses, validation, fmt=fmt or "json")
+    oblig_out = obligations(hypotheses, fmt=fmt or "json")
+    proof_out = proof(proof_log, validation, fmt=fmt or "cli")
 
     contact_trace_path = out_dir / "contact_trace.json"
     obligations_path = out_dir / "obligations.json"
     proof_path = out_dir / "proof.txt"
-    contact_trace_path.write_text(json.dumps(trace_json))
-    obligations_path.write_text(json.dumps(oblig_json))
-    proof_path.write_text(proof_text)
+    contact_trace_path.write_text(trace_out if isinstance(trace_out, str) else json.dumps(trace_out))
+    obligations_path.write_text(oblig_out if isinstance(oblig_out, str) else json.dumps(oblig_out))
+    proof_path.write_text(proof_out if isinstance(proof_out, str) else json.dumps(proof_out))
 
     return contact_trace_path, obligations_path, proof_path
 
 
-def _run(artifact: str, out_dir: str = "out") -> None:
+def _run(
+    artifact: str,
+    out_dir: str = "out",
+    guess: str | None = None,
+    limits: str | None = None,
+    fmt: str | None = None,
+) -> None:
     """Delegate to the probing pipeline.
 
     Parameters
@@ -227,8 +304,19 @@ def _run(artifact: str, out_dir: str = "out") -> None:
     out_dir:
         Directory where probe results should be written.  The directory
         is created if it does not exist.
+    guess:
+        Optional hypothesis overrides (``key=value`` pairs).
+    limits:
+        Optional sandbox limits (``timeout=2s,vram=1GB``).
+    fmt:
+        Optional printer output format.
     """
-    contact_trace, obligations, proof_file = run_pipeline(Path(artifact), Path(out_dir))
+
+    guesses = _parse_guess(guess)
+    limits_map = _parse_limits(limits)
+    contact_trace, obligations, proof_file = run_pipeline(
+        Path(artifact), Path(out_dir), guesses=guesses, limits=limits_map, fmt=fmt
+    )
     print(f"contact trace written to: {contact_trace}")
     print(f"obligations written to: {obligations}")
     print(f"proof transcript written to: {proof_file}")
@@ -239,9 +327,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Probe a model artifact")
     parser.add_argument("--artifact", required=True, help="path to model artifact")
     parser.add_argument("--out", default="out", help="output directory for results")
+    parser.add_argument("--guess", help="seed hypotheses", default=None)
+    parser.add_argument("--limits", help="resource limits", default=None)
+    parser.add_argument("--format", dest="fmt", help="printer output format", default=None)
     args = parser.parse_args()
 
-    _run(args.artifact, args.out)
+    _run(args.artifact, args.out, args.guess, args.limits, args.fmt)
 
 
 if __name__ == "__main__":
