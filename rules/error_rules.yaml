@@ -1,16 +1,186 @@
-- msg: "COND_DIM: expected 2048"
-  update: {TEXT_EMB_d: 2048}
-- msg: "LATENT_C: expected 4"
-  update: {LATENT_C: 4}
-- msg: "HEAD: expected v"
-  update: {HEAD: v}
-- msg: "LATENT_SCALE: expected 16"
-  update: {LATENT_SCALE: 16}
-- msg: "VISION_ADAPTER: ViT-L/14-grid"
-  update: {VISION: ViT-L/14-grid}
-- msg: "KV_DTYPE: f16"
-  update: {KV_DTYPE: f16}
-- msg: "VOCAB: 32000"
-  update: {VOCAB: 32000}
-- msg: "ROPE: 128k"
-  update: {ROPE: 128000}
+- msg: 'COND_DIM: expected 10'
+  update:
+    TEXT_EMB_d: 10
+- msg: 'COND_DIM: expected 14'
+  update:
+    TEXT_EMB_d: 14
+- msg: 'COND_DIM: expected 18'
+  update:
+    TEXT_EMB_d: 18
+- msg: 'COND_DIM: expected 22'
+  update:
+    TEXT_EMB_d: 22
+- msg: 'COND_DIM: expected 26'
+  update:
+    TEXT_EMB_d: 26
+- msg: 'COND_DIM: expected 30'
+  update:
+    TEXT_EMB_d: 30
+- msg: 'COND_DIM: expected 34'
+  update:
+    TEXT_EMB_d: 34
+- msg: 'COND_DIM: expected 38'
+  update:
+    TEXT_EMB_d: 38
+- msg: 'COND_DIM: expected 42'
+  update:
+    TEXT_EMB_d: 42
+- msg: 'COND_DIM: expected 46'
+  update:
+    TEXT_EMB_d: 46
+- msg: 'COND_DIM: expected 50'
+  update:
+    TEXT_EMB_d: 50
+- msg: 'COND_DIM: expected 54'
+  update:
+    TEXT_EMB_d: 54
+- msg: 'COND_DIM: expected 58'
+  update:
+    TEXT_EMB_d: 58
+- msg: 'COND_DIM: expected 62'
+  update:
+    TEXT_EMB_d: 62
+- msg: 'COND_DIM: expected 66'
+  update:
+    TEXT_EMB_d: 66
+- msg: 'LATENT_C: expected 1'
+  update:
+    LATENT_C: 1
+- msg: 'LATENT_C: expected 2'
+  update:
+    LATENT_C: 2
+- msg: 'LATENT_C: expected 3'
+  update:
+    LATENT_C: 3
+- msg: 'LATENT_C: expected 4'
+  update:
+    LATENT_C: 4
+- msg: 'LATENT_C: expected 5'
+  update:
+    LATENT_C: 5
+- msg: 'LATENT_C: expected 6'
+  update:
+    LATENT_C: 6
+- msg: 'LATENT_C: expected 7'
+  update:
+    LATENT_C: 7
+- msg: 'LATENT_C: expected 8'
+  update:
+    LATENT_C: 8
+- msg: 'LATENT_C: expected 16'
+  update:
+    LATENT_C: 16
+- msg: 'LATENT_C: expected 32'
+  update:
+    LATENT_C: 32
+- msg: 'HEAD: expected epsilon'
+  update:
+    HEAD: epsilon
+- msg: HEAD expected epsilon
+  update:
+    HEAD: epsilon
+- msg: 'HEAD: expected v'
+  update:
+    HEAD: v
+- msg: HEAD expected v
+  update:
+    HEAD: v
+- msg: 'HEAD: expected flow'
+  update:
+    HEAD: flow
+- msg: HEAD expected flow
+  update:
+    HEAD: flow
+- msg: 'LATENT_SCALE: expected 1'
+  update:
+    LATENT_SCALE: 1
+- msg: 'LATENT_SCALE: expected 2'
+  update:
+    LATENT_SCALE: 2
+- msg: 'LATENT_SCALE: expected 4'
+  update:
+    LATENT_SCALE: 4
+- msg: 'LATENT_SCALE: expected 8'
+  update:
+    LATENT_SCALE: 8
+- msg: 'LATENT_SCALE: expected 16'
+  update:
+    LATENT_SCALE: 16
+- msg: 'LATENT_SCALE: expected 32'
+  update:
+    LATENT_SCALE: 32
+- msg: 'LATENT_SCALE: expected 64'
+  update:
+    LATENT_SCALE: 64
+- msg: 'VISION_ADAPTER: ViT-L/14-grid'
+  update:
+    VISION: ViT-L/14-grid
+- msg: 'VISION_ADAPTER: ViT-H/14-grid'
+  update:
+    VISION: ViT-H/14-grid
+- msg: 'VISION_ADAPTER: SigLIP-H-map'
+  update:
+    VISION: SigLIP-H-map
+- msg: 'VISION_ADAPTER: ViT-B/16'
+  update:
+    VISION: ViT-B/16
+- msg: 'KV_DTYPE: f16'
+  update:
+    KV_DTYPE: f16
+- msg: 'KV_DTYPE: f32'
+  update:
+    KV_DTYPE: f32
+- msg: 'KV_DTYPE: bf16'
+  update:
+    KV_DTYPE: bf16
+- msg: 'KV_DTYPE: int8'
+  update:
+    KV_DTYPE: int8
+- msg: 'VOCAB: 32000'
+  update:
+    VOCAB: 32000
+- msg: 'VOCAB: 64000'
+  update:
+    VOCAB: 64000
+- msg: 'VOCAB: 50000'
+  update:
+    VOCAB: 50000
+- msg: 'VOCAB: 4096'
+  update:
+    VOCAB: 4096
+- msg: 'VOCAB: 8192'
+  update:
+    VOCAB: 8192
+- msg: 'VOCAB: 12345'
+  update:
+    VOCAB: 12345
+- msg: 'VOCAB: 98765'
+  update:
+    VOCAB: 98765
+- msg: 'VOCAB: 7777'
+  update:
+    VOCAB: 7777
+- msg: 'ROPE: 128'
+  update:
+    ROPE: 128
+- msg: 'ROPE: 256'
+  update:
+    ROPE: 256
+- msg: 'ROPE: 512'
+  update:
+    ROPE: 512
+- msg: 'ROPE: 1024k'
+  update:
+    ROPE: 1024000
+- msg: 'ROPE: 2048k'
+  update:
+    ROPE: 2048000
+- msg: 'ROPE: 4096k'
+  update:
+    ROPE: 4096000
+- msg: 'ROPE: 1000k'
+  update:
+    ROPE: 1000000
+- msg: 'ROPE: 16000k'
+  update:
+    ROPE: 16000000
