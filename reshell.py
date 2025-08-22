@@ -290,7 +290,7 @@ def run_pipeline(
             updates = parse_reason(reason)
             if updates:
                 hypotheses.update(updates)
-                planner.update(hypotheses)
+                planner.update(updates)
             proof_log.append(f"candidate {combo} -> {reason}")
 
     trace_out = contact_trace(hypotheses, validation, fmt=fmt or "json")
