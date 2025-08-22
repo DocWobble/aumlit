@@ -7,12 +7,20 @@
 
 * **Docs:** see [docs/RESHELL.md](docs/RESHELL.md) for foundation libraries, MVP sprint plan, vision, and project summary.
 
-## Usage
+## Installation
 
-Run the skeleton CLI:
+Install the package and its command-line interface with:
 
 ```bash
-python reshell.py --artifact path/to/model.safetensors --out out_dir
+pip install .
+```
+
+## Usage
+
+After installation the `reshell` command becomes available:
+
+```bash
+reshell --artifact path/to/model.safetensors --out out_dir
 ```
 
 The command prints placeholder locations for `contact_trace.json`, `obligations.json`, and `proof.txt`.
