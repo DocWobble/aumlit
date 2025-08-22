@@ -1,5 +1,5 @@
-import json
 from pathlib import Path
+import json
 import sys
 
 import torch
@@ -38,3 +38,14 @@ def test_run_pipeline_failure_classification(tmp_path):
     proof = proof_path.read_text()
     assert "COND_DIM" in proof and "ok" in proof
     assert oblig_path.read_text()
+
+
+def test_run_pipeline_cli_format(tmp_path):
+    artifact = tmp_path / "lin128.pt"
+    _save_linear(128, artifact)
+
+    ct_path, oblig_path, proof_path = run_pipeline(artifact, tmp_path, fmt="cli")
+
+    assert "TEXT_EMB" in ct_path.read_text()
+    assert "TEXT_ENCODER" in oblig_path.read_text()
+    assert "candidate" in proof_path.read_text()
