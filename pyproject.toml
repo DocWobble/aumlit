@@ -13,10 +13,19 @@ authors = [{name = "Aumlit Contributors"}]
 dependencies = [
     "onnx",
     "gguf",
+    "PyYAML",
 ]
 
 [project.scripts]
 reshell = "reshell:main"
 
 [tool.setuptools]
-py-modules = ["reshell", "headers", "printers", "planner", "puppets", "sandbox"]
+py-modules = [
+    "classifier",
+    "reshell",
+    "headers",
+    "printers",
+    "planner",
+    "puppets",
+    "sandbox",
+]
