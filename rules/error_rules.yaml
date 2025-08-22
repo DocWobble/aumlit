@@ -1,0 +1,16 @@
+- msg: "COND_DIM: expected 2048"
+  update: {TEXT_EMB_d: 2048}
+- msg: "LATENT_C: expected 4"
+  update: {LATENT_C: 4}
+- msg: "HEAD: expected v"
+  update: {HEAD: v}
+- msg: "LATENT_SCALE: expected 16"
+  update: {LATENT_SCALE: 16}
+- msg: "VISION_ADAPTER: ViT-L/14-grid"
+  update: {VISION: ViT-L/14-grid}
+- msg: "KV_DTYPE: f16"
+  update: {KV_DTYPE: f16}
+- msg: "VOCAB: 32000"
+  update: {VOCAB: 32000}
+- msg: "ROPE: 128k"
+  update: {ROPE: 128000}

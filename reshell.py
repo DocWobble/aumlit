@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
+from classifier import parse_reason
+
 from headers import Meta, read_gguf_header, read_onnx_header, read_safetensors_header
 from planner import Planner
 from printers import contact_trace, obligations, proof
@@ -157,20 +159,6 @@ def _probe_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
     return _torch_engine_forward(artifact, inputs)
 
 
-def _parse_reason(msg: str) -> Dict[str, Any]:
-    """Extract hypothesis updates from ``msg`` if possible."""
-    # Errors may be wrapped like ``RuntimeError('COND_DIM: expected 4')`` –
-    # peel off the wrapper if present.
-    if "'" in msg:
-        msg = msg.split("'", 2)[1]
-    parts = msg.split()
-    if msg.startswith("COND_DIM") and parts[-1].isdigit():
-        return {"TEXT_EMB_d": int(parts[-1])}
-    if msg.startswith("LATENT_C") and parts[-1].isdigit():
-        return {"LATENT_C": int(parts[-1])}
-    return {}
-
-
 def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
     """Run a tiny probing loop over candidate combinations."""
 
@@ -198,7 +186,7 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
             break
         except Exception as e:  # pragma: no cover - error path
             reason = str(e)
-            updates = _parse_reason(reason)
+            updates = parse_reason(reason)
             if updates:
                 hypotheses.update(updates)
             proof_log.append(f"candidate {combo} -> {reason}")
