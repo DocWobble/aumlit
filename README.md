@@ -5,3 +5,4 @@
 * **Extensibility:** taxonomy file, new puppet families, new oracle wrappers.
 
 
+* **Docs:** see [docs/RESHELL.md](docs/RESHELL.md) for foundation libraries, MVP sprint plan, vision, and project summary.
