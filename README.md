@@ -6,3 +6,13 @@
 
 
 * **Docs:** see [docs/RESHELL.md](docs/RESHELL.md) for foundation libraries, MVP sprint plan, vision, and project summary.
+
+## Usage
+
+Run the skeleton CLI:
+
+```bash
+python reshell.py --artifact path/to/model.safetensors --out out_dir
+```
+
+The command prints placeholder locations for `contact_trace.json` and `obligations.json`.
