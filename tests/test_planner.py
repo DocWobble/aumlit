@@ -21,10 +21,22 @@ def test_planner_ordering():
         "LATENT_C": [4],
         "LATENT_SCALE": [8],
         "VISION": ["V1", "V2"],
+        "VOCAB": [32000],
+        "ROPE": [128000],
+        "KV_DTYPE": ["f16"],
     }
     p = Planner(seed={}, defaults=defaults)
     first = next(p)
     second = next(p)
-    assert list(first.keys()) == ["TEXT_EMB_d", "HEAD", "LATENT_C", "LATENT_SCALE", "VISION"]
+    assert list(first.keys()) == [
+        "TEXT_EMB_d",
+        "HEAD",
+        "LATENT_C",
+        "LATENT_SCALE",
+        "VISION",
+        "VOCAB",
+        "ROPE",
+        "KV_DTYPE",
+    ]
     assert first["VISION"] != second["VISION"]
     assert first["TEXT_EMB_d"] == second["TEXT_EMB_d"]

@@ -18,10 +18,13 @@ except Exception:  # pragma: no cover - fallback
 __all__ = ["text_emb", "latent", "vision_grid", "kv_cache_probe"]
 
 
-def _randn(shape: Tuple[int, ...]):
+def _randn(shape: Tuple[int, ...], dtype: str | None = None):
+    """Generate random data with an optional dtype hint."""
     if _HAS_TORCH:
-        return torch.randn(shape)
-    return np.random.randn(*shape).astype(np.float32)
+        torch_dtype = torch.float16 if dtype == "f16" else torch.float32
+        return torch.randn(shape, dtype=torch_dtype)
+    np_dtype = np.float16 if dtype == "f16" else np.float32
+    return np.random.randn(*shape).astype(np_dtype)
 
 
 def text_emb(d: int):
@@ -48,7 +51,20 @@ def vision_grid(profile: str):
     return _randn(shape)
 
 
-def kv_cache_probe(n_heads: int, d_head: int, t: int = 2):
-    """Dummy key/value cache tensor for LLM probes."""
+def kv_cache_probe(n_heads: int, d_head: int, t: int = 2, dtype: str | None = None):
+    """Dummy key/value cache tensor for LLM probes.
+
+    Parameters
+    ----------
+    n_heads:
+        Number of attention heads.
+    d_head:
+        Dimension per head.
+    t:
+        Sequence length (default ``2``).
+    dtype:
+        Optional key/value dtype hint (e.g. ``"f16"`` or ``"f32"``).
+    """
+
     shape = (2, int(n_heads), t, int(d_head))
-    return _randn(shape)
+    return _randn(shape, dtype)

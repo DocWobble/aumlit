@@ -158,10 +158,11 @@ def _onnx_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
 def _llama_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
     """Run a minimal llama.cpp step via :mod:`llama_cpp`.
 
-    The model's metadata is read when instantiating :class:`llama_cpp.Llama`.
-    We then perform a single evaluation step with a provided ``token_id``
-    (default ``0``).  Any exceptions are re-raised with extracted integers to
-    aid hypothesis updates.
+    ``inputs`` may include optional hints (``vocab``, ``rope``, ``kv_dtype``)
+    which are forwarded to the underlying :class:`llama_cpp.Llama` constructor
+    when available.  A single evaluation step is then executed with the
+    provided ``token_id`` (default ``0``).  Any exceptions are re-raised with
+    extracted integers to aid hypothesis updates.
     """
 
     import re
@@ -171,8 +172,20 @@ def _llama_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
         raise RuntimeError("LLAMA_CPP_MISSING") from e
 
     token_id = int(inputs.get("token_id", 0))
+    kv_dtype = inputs.get("kv_dtype")
+    rope = inputs.get("rope")
+    vocab = inputs.get("vocab")
+
+    kwargs = {}
+    if kv_dtype is not None:
+        kwargs["f16_kv"] = kv_dtype == "f16"
+    if rope is not None:
+        kwargs["rope_freq_base"] = int(rope)
+    if vocab is not None:
+        kwargs["vocab_only"] = True
+
     try:
-        llm = Llama(model_path=str(artifact), n_ctx=16, n_gpu_layers=0)
+        llm = Llama(model_path=str(artifact), n_ctx=16, n_gpu_layers=0, **kwargs)
         llm.eval([token_id])  # one-step evaluation
     except Exception as e:  # pragma: no cover - runtime failure path
         msg = str(e).lower()
@@ -259,6 +272,12 @@ def run_pipeline(
             puppet_inputs["latent"] = latent(combo["LATENT_C"], combo["LATENT_SCALE"])
         if "VISION" in combo:
             puppet_inputs["vision"] = vision_grid(combo["VISION"])
+        if "VOCAB" in combo:
+            puppet_inputs["vocab"] = combo["VOCAB"]
+        if "ROPE" in combo:
+            puppet_inputs["rope"] = combo["ROPE"]
+        if "KV_DTYPE" in combo:
+            puppet_inputs["kv_dtype"] = combo["KV_DTYPE"]
 
         try:
             sandbox.try_forward(_probe_engine_forward, artifact, puppet_inputs)

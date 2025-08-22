@@ -17,9 +17,22 @@ DEFAULT_CANDIDATES: Dict[str, Sequence[Any]] = {
     "LATENT_C": [4, 8],
     "LATENT_SCALE": [8, 16],
     "VISION": ["ViT-L/14-grid", "ViT-H/14-grid", "SigLIP-H-map"],
+    # LLM-specific knobs
+    "VOCAB": [32000, 64000],
+    "ROPE": [128000, 256000],
+    "KV_DTYPE": ["f16", "f32"],
 }
 
-ORDER = ["TEXT_EMB_d", "HEAD", "LATENT_C", "LATENT_SCALE", "VISION"]
+ORDER = [
+    "TEXT_EMB_d",
+    "HEAD",
+    "LATENT_C",
+    "LATENT_SCALE",
+    "VISION",
+    "VOCAB",
+    "ROPE",
+    "KV_DTYPE",
+]
 
 
 def plan_candidates(
@@ -50,7 +63,7 @@ class Planner:
     """Iterate through probe candidate combinations.
 
     The enumeration order favours collapsing large uncertainties first:
-    ``TEXT_EMB_d → HEAD → LATENT_C → LATENT_SCALE → VISION``.
+    ``TEXT_EMB_d → HEAD → LATENT_C → LATENT_SCALE → VISION → VOCAB → ROPE → KV_DTYPE``.
     """
 
     seed: Mapping[str, Any] = field(default_factory=dict)
