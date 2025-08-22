@@ -74,5 +74,25 @@ class Planner:
         values = next(self._iter)
         return dict(zip(self._keys, values))
 
+    def update(self, hyp: Mapping[str, Any]) -> None:
+        """Prune candidate lists according to ``hyp`` and reset iteration.
+
+        Any key present in ``hyp`` is fixed to its provided value.  If the
+        value differs from the current candidate space the internal iterator is
+        rebuilt so subsequent ``next`` calls reflect the new hypothesis state.
+        """
+
+        changed = False
+        for key, val in hyp.items():
+            current = self.candidates.get(key)
+            if current == [val]:
+                continue
+            self.candidates[key] = [val]
+            changed = True
+        if changed:
+            keys = [k for k in self.order if k in self.candidates]
+            self._keys = keys
+            self._iter = product(*(self.candidates[k] for k in keys))
+
 
 __all__ = ["DEFAULT_CANDIDATES", "plan_candidates", "Planner"]

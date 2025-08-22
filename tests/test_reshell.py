@@ -36,5 +36,5 @@ def test_run_pipeline_failure_classification(tmp_path):
     trace = json.loads(ct_path.read_text())
     assert trace["hypotheses"]["TEXT_EMB_d"] == 4
     proof = proof_path.read_text()
-    assert "COND_DIM" in proof
+    assert "COND_DIM" in proof and "ok" in proof
     assert oblig_path.read_text()
