@@ -140,20 +140,20 @@ def contact_trace(hyp: Dict[str, Any], validation: Dict[str, Any] | None = None,
 
 
 def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
-    """Derive outstanding component obligations from hypotheses.
+    """Derive component obligations from hypotheses.
 
-    Missing hypothesis keys are rendered into user-readable obligation
-    messages.
+    All obligation templates are rendered, substituting known values where
+    available and ``"?"`` otherwise.
     """
 
-    missing = [
-        template.format(hyp.get(key, "?")) for key, template in _OBLIGATION_TEMPLATES.items()
-    ]
+
+    entries = [template.format(hyp.get(key, "?")) for key, template in _OBLIGATION_TEMPLATES.items()]
+
 
     if fmt == "json":
-        return missing
+        return entries
     if fmt == "cli":
-        return "\n".join(f"* {m}" for m in missing)
+        return "\n".join(f"* {e}" for e in entries)
     if fmt == "comfy":
         nodes: List[Dict[str, Any]] = []
         if "TEXT_EMB_d" not in hyp:

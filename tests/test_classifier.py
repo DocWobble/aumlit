@@ -14,3 +14,8 @@ def test_error_rules():
         msg = case["msg"]
         expected = case["update"]
         assert parse_reason(msg) == expected
+
+
+def test_multiple_hints_collected():
+    msg = "COND_DIM: expected 4 LATENT_C: expected 8"
+    assert parse_reason(msg) == {"TEXT_EMB_d": 4, "LATENT_C": 8}

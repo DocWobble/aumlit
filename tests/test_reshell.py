@@ -6,6 +6,7 @@ import torch
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+import reshell
 from reshell import run_pipeline
 
 
@@ -52,6 +53,32 @@ def test_run_pipeline_cli_format(tmp_path):
     assert "candidate" in proof_path.read_text()
 
 
+def test_run_pipeline_multiple_hints(monkeypatch, tmp_path):
+    artifact = tmp_path / "multi.pt"
+    _save_linear(4, artifact)
+
+    def fake_forward(artifact_path, inputs):
+        text = inputs.get("text")
+        latent = inputs.get("latent")
+        msgs = []
+        if text is None or text.shape[-1] != 4:
+            msgs.append("COND_DIM: expected 4")
+        if latent is None or latent.shape[1] != 8:
+            msgs.append("LATENT_C: expected 8")
+        if msgs:
+            raise RuntimeError(" ".join(msgs))
+        return "ok"
+
+    monkeypatch.setattr(reshell, "_torch_engine_forward", fake_forward)
+
+    ct_path, oblig_path, proof_path = run_pipeline(artifact, tmp_path)
+
+    trace = json.loads(ct_path.read_text())
+    assert trace["hypotheses"]["TEXT_EMB_d"] == 4
+    assert trace["hypotheses"]["LATENT_C"] == 8
+    assert "COND_DIM" in proof_path.read_text()
+
+
 def test_run_pipeline_onnx_fixture(tmp_path):
     pytest.importorskip("onnx")
     pytest.importorskip("onnxruntime")
@@ -79,3 +106,4 @@ def test_run_pipeline_gguf_fixture(tmp_path):
     proof = proof_path.read_text()
     assert "candidate" in proof
     assert oblig_path.read_text()
+
