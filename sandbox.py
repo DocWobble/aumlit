@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from multiprocessing import Process, Queue
+from pathlib import Path
 from typing import Any, Callable, Mapping
+import hashlib
 import os
 import resource
 
@@ -34,6 +36,7 @@ class Sandbox:
 
     def __init__(self, limits: Limits | None = None) -> None:
         self.limits = limits or Limits()
+        self.cache: dict[tuple[str, str], tuple[str, Any]] = {}
 
     # Child process -------------------------------------------------
     def _worker(self, fn: Callable[..., Any], q: Queue, *args: Any, **kwargs: Any) -> None:
@@ -62,6 +65,22 @@ class Sandbox:
         *args, **kwargs:
             Passed directly to ``fn``.
         """
+        key: tuple[str, str] | None = None
+        if args and isinstance(args[0], (str, os.PathLike, Path)):
+            try:
+                artifact_path = Path(args[0])
+                artifact_sha256 = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+                sig_src = repr((args[1:], sorted(kwargs.items())))
+                probe_signature = hashlib.sha256(sig_src.encode()).hexdigest()
+                key = (artifact_sha256, probe_signature)
+            except Exception:
+                key = None
+            if key and key in self.cache:
+                status, payload = self.cache[key]
+                if status == "ok":
+                    return payload
+                raise RuntimeError(payload)
+
         q: Queue = Queue()
         p = Process(target=self._worker, args=(fn, q, *args), kwargs=kwargs)
         p.start()
@@ -73,6 +92,8 @@ class Sandbox:
         if q.empty():
             raise RuntimeError("sandbox produced no result")
         status, payload = q.get()
+        if key is not None:
+            self.cache[key] = (status, payload)
         if status == "ok":
             return payload
         raise RuntimeError(payload)
