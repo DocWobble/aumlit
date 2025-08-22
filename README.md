@@ -15,4 +15,4 @@ Run the skeleton CLI:
 python reshell.py --artifact path/to/model.safetensors --out out_dir
 ```
 
-The command prints placeholder locations for `contact_trace.json` and `obligations.json`.
+The command prints placeholder locations for `contact_trace.json`, `obligations.json`, and `proof.txt`.
