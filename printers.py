@@ -20,6 +20,7 @@ _OBLIGATION_TEMPLATES = {
     "LATENT_SCALE": "VAE(scale={})",
     "HEAD": "UNET(head={})",
     "VISION": "VISION_ADAPTER(profile={})",
+    "AUDIO_SHAPE": "AUDIO_ENCODER(shape={})",
 }
 
 
@@ -54,6 +55,8 @@ def contact_trace(hyp: Dict[str, Any], validation: Dict[str, Any] | None = None,
             parts.append(f"VAE(C={hyp['LATENT_C']},scale={hyp['LATENT_SCALE']})")
         if "VISION" in hyp:
             parts.append(f"VISION(profile={hyp['VISION']})")
+        if "AUDIO_SHAPE" in hyp:
+            parts.append(f"AUDIO(shape={hyp['AUDIO_SHAPE']})")
         trace = " -> ".join(parts) or "<empty>"
         if validation:
             metrics: List[str] = []
@@ -92,6 +95,9 @@ def contact_trace(hyp: Dict[str, Any], validation: Dict[str, Any] | None = None,
             add_node("VAE", params)
         if "VISION" in hyp:
             add_node("VISION", {"profile": hyp["VISION"]})
+        if "AUDIO_SHAPE" in hyp:
+            c, t, f = (int(x) for x in hyp["AUDIO_SHAPE"])
+            add_node("AUDIO", {"shape": [c, t, f]})
 
         # Edges expressing minimal data flow between nodes.
         if "TEXT_EMB" in node_ids and "UNET" in node_ids:
@@ -121,6 +127,13 @@ def contact_trace(hyp: Dict[str, Any], validation: Dict[str, Any] | None = None,
                 "src_port": "vision",
                 "dst_port": "vision",
             })
+        if "AUDIO" in node_ids and "UNET" in node_ids:
+            edges.append({
+                "src": node_ids["AUDIO"],
+                "dst": node_ids["UNET"],
+                "src_port": "audio",
+                "dst_port": "audio",
+            })
 
         return {"nodes": nodes, "edges": edges}
     raise ValueError(f"unknown format: {fmt}")
@@ -133,7 +146,9 @@ def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
     available and ``"?"`` otherwise.
     """
 
+
     entries = [template.format(hyp.get(key, "?")) for key, template in _OBLIGATION_TEMPLATES.items()]
+
 
     if fmt == "json":
         return entries
@@ -154,6 +169,8 @@ def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
             nodes.append({"type": "UNET", "params": {"head": None}})
         if "VISION" not in hyp:
             nodes.append({"type": "VISION_ADAPTER", "params": {"profile": None}})
+        if "AUDIO_SHAPE" not in hyp:
+            nodes.append({"type": "AUDIO_ENCODER", "params": {"shape": None}})
         return nodes
     raise ValueError(f"unknown format: {fmt}")
 

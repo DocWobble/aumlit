@@ -62,3 +62,23 @@ def test_sandbox_cache_error(tmp_path):
     with pytest.raises(RuntimeError):
         box.try_forward(boom, artifact, counter)
     assert counter.read_text() == "x"
+
+
+def test_sandbox_disk_cache(tmp_path):
+    artifact = tmp_path / "c.bin"
+    artifact.write_bytes(b"hello")
+    counter = artifact.with_suffix(".cnt")
+    cache_dir = tmp_path / "cache"
+
+    def worker(path: Path, counter_path: Path) -> int:
+        with open(counter_path, "a") as fh:
+            fh.write("x")
+        return 5
+
+    box = Sandbox(cache_dir=cache_dir)
+    assert box.try_forward(worker, artifact, counter) == 5
+    assert counter.read_text() == "x"
+
+    box2 = Sandbox(cache_dir=cache_dir)
+    assert box2.try_forward(worker, artifact, counter) == 5
+    assert counter.read_text() == "x"

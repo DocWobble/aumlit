@@ -13,6 +13,7 @@ def test_contact_trace_comfy():
         "LATENT_C": 4,
         "LATENT_SCALE": 8,
         "VISION": "ViT-H/14-grid",
+        "AUDIO_SHAPE": (2, 4, 32),
     }
     trace = printers.contact_trace(hyp, fmt="comfy")
     nodes = {n["type"]: n for n in trace["nodes"]}
@@ -20,12 +21,14 @@ def test_contact_trace_comfy():
     assert nodes["UNET"]["params"] == {"head": "epsilon"}
     assert nodes["VAE"]["params"] == {"C": 4, "scale": 8}
     assert nodes["VISION"]["params"] == {"profile": "ViT-H/14-grid"}
+    assert nodes["AUDIO"]["params"] == {"shape": [2, 4, 32]}
     edges = trace["edges"]
     ids = {typ: nodes[typ]["id"] for typ in nodes}
     assert {"src": ids["TEXT_EMB"], "dst": ids["UNET"], "src_port": "cond", "dst_port": "cond"} in edges
     assert {"src": ids["VAE"], "dst": ids["UNET"], "src_port": "latent", "dst_port": "latent"} in edges
     assert {"src": ids["UNET"], "dst": ids["VAE"], "src_port": "latent", "dst_port": "latent"} in edges
     assert {"src": ids["VISION"], "dst": ids["UNET"], "src_port": "vision", "dst_port": "vision"} in edges
+    assert {"src": ids["AUDIO"], "dst": ids["UNET"], "src_port": "audio", "dst_port": "audio"} in edges
 
 
 def test_obligations_comfy():
@@ -36,6 +39,7 @@ def test_obligations_comfy():
     assert nodes["UNET"]["params"] == {"head": None}
     assert nodes["VAE"]["params"] == {"C": None, "scale": None}
     assert nodes["VISION_ADAPTER"]["params"] == {"profile": None}
+    assert nodes["AUDIO_ENCODER"]["params"] == {"shape": None}
 
 
 def test_proof_ignores_comfy():
