@@ -21,6 +21,7 @@ def test_planner_ordering():
         "LATENT_C": [4],
         "LATENT_SCALE": [8],
         "VISION": ["V1", "V2"],
+        "AUDIO_SHAPE": [(1, 1, 1), (2, 2, 2)],
         "VOCAB": [32000],
         "ROPE": [128000],
         "KV_DTYPE": ["f16"],
@@ -34,9 +35,11 @@ def test_planner_ordering():
         "LATENT_C",
         "LATENT_SCALE",
         "VISION",
+        "AUDIO_SHAPE",
         "VOCAB",
         "ROPE",
         "KV_DTYPE",
     ]
-    assert first["VISION"] != second["VISION"]
+    assert first["AUDIO_SHAPE"] != second["AUDIO_SHAPE"]
+    assert first["VISION"] == second["VISION"]
     assert first["TEXT_EMB_d"] == second["TEXT_EMB_d"]

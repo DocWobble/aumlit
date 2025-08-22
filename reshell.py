@@ -18,7 +18,7 @@ from classifier import parse_reason
 from headers import Meta, read_gguf_header, read_onnx_header, read_safetensors_header
 from planner import Planner
 from printers import contact_trace, obligations, proof
-from puppets import latent, text_emb, vision_grid
+from puppets import audio_mel, latent, text_emb, vision_grid
 from sandbox import spawn_sandbox
 
 
@@ -272,6 +272,8 @@ def run_pipeline(
             puppet_inputs["latent"] = latent(combo["LATENT_C"], combo["LATENT_SCALE"])
         if "VISION" in combo:
             puppet_inputs["vision"] = vision_grid(combo["VISION"])
+        if "AUDIO_SHAPE" in combo:
+            puppet_inputs["audio"] = audio_mel(combo["AUDIO_SHAPE"])
         if "VOCAB" in combo:
             puppet_inputs["vocab"] = combo["VOCAB"]
         if "ROPE" in combo:
