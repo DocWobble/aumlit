@@ -146,7 +146,9 @@ def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
     messages.
     """
 
-    missing = [template.format("?") for key, template in _OBLIGATION_TEMPLATES.items() if key not in hyp]
+    missing = [
+        template.format(hyp.get(key, "?")) for key, template in _OBLIGATION_TEMPLATES.items()
+    ]
 
     if fmt == "json":
         return missing

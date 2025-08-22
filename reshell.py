@@ -56,13 +56,18 @@ def _parse_guess(guess: str | None) -> Dict[str, Any]:
     return result
 
 
-def _parse_limits(limits: str | None) -> Dict[str, int | float]:
-    """Parse ``--limits`` into ``spawn_sandbox`` kwargs."""
+def _parse_limits(limits: str | None) -> Dict[str, int | float | str]:
+    """Parse ``--limits`` into ``spawn_sandbox`` kwargs.
 
-    result: Dict[str, int | float] = {}
+    Supported keys include ``timeout``, ``vram``, ``cpu_mem`` and
+    ``cache_dir``.
+    """
+
+    result: Dict[str, int | float | str] = {}
     for key, val in _parse_assignments(limits).items():
         lk = key.strip()
-        lv = val.strip().lower()
+        lv_raw = val.strip()
+        lv = lv_raw.lower()
         if lk == "timeout":
             if lv.endswith("s"):
                 lv = lv[:-1]
@@ -82,6 +87,8 @@ def _parse_limits(limits: str | None) -> Dict[str, int | float]:
                 result[lk] = int(float(lv) * mult)
             except ValueError:
                 pass
+        elif lk in {"cache", "cache_dir"}:
+            result["cache_dir"] = lv_raw
     return result
 
 
@@ -248,7 +255,7 @@ def run_pipeline(
     artifact: Path,
     out_dir: Path,
     guesses: Mapping[str, Any] | None = None,
-    limits: Mapping[str, int | float] | None = None,
+    limits: Mapping[str, Any] | None = None,
     fmt: str | None = None,
 ) -> Tuple[Path, Path, Path]:
     """Run a tiny probing loop over candidate combinations."""
@@ -260,7 +267,9 @@ def run_pipeline(
     if guesses:
         hypotheses.update(guesses)
     planner = Planner(seed=hypotheses)
-    sandbox = spawn_sandbox(limits)
+    limits_dict = dict(limits) if limits else {}
+    cache_dir = limits_dict.pop("cache_dir", None)
+    sandbox = spawn_sandbox(limits_dict or None, cache_dir=cache_dir)
 
     proof_log: list[str] = []
     validation: Dict[str, Any] | None = None
@@ -328,7 +337,8 @@ def _run(
     guess:
         Optional hypothesis overrides (``key=value`` pairs).
     limits:
-        Optional sandbox limits (``timeout=2s,vram=1GB``).
+        Optional sandbox limits and cache directory
+        (``timeout=2s,vram=1GB,cache_dir=/tmp/cache``).
     fmt:
         Optional printer output format.
     """
@@ -349,7 +359,11 @@ def main() -> None:
     parser.add_argument("--artifact", required=True, help="path to model artifact")
     parser.add_argument("--out", default="out", help="output directory for results")
     parser.add_argument("--guess", help="seed hypotheses", default=None)
-    parser.add_argument("--limits", help="resource limits", default=None)
+    parser.add_argument(
+        "--limits",
+        help="resource limits and cache (timeout=2s,vram=1GB,cache_dir=/tmp/cache)",
+        default=None,
+    )
     parser.add_argument("--format", dest="fmt", help="printer output format", default=None)
     args = parser.parse_args()
 
