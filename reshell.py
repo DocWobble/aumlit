@@ -73,15 +73,19 @@ def _onnx_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
     import onnxruntime as ort
     import re
 
+    sess = ort.InferenceSession(str(artifact))
+    input_name = sess.get_inputs()[0].name
+    expected = sess.get_inputs()[0].shape[-1]
+    data = next(iter(inputs.values()))
+    if hasattr(data, "numpy"):
+        data = data.numpy()
+    if data.shape[-1] != expected:
+        raise RuntimeError(f"COND_DIM: expected {expected}")
     try:
-        sess = ort.InferenceSession(str(artifact))
-        input_name = sess.get_inputs()[0].name
-        data = next(iter(inputs.values()))
-        if hasattr(data, "numpy"):
-            data = data.numpy()
         sess.run(None, {input_name: np.asarray(data)})
     except Exception as e:  # pragma: no cover - depends on runtime errors
-        ints = re.findall(r"\d+", str(e))
+        msg = str(e)
+        ints = re.findall(r"\d+", msg)
         if ints:
             raise RuntimeError("ONNX_FAIL: " + " ".join(ints)) from e
         raise
@@ -108,9 +112,14 @@ def _llama_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
         llm = Llama(model_path=str(artifact), n_ctx=16, n_gpu_layers=0)
         llm.eval([token_id])  # one-step evaluation
     except Exception as e:  # pragma: no cover - runtime failure path
-        ints = re.findall(r"\d+", str(e))
+        msg = str(e).lower()
+        ints = [int(x) for x in re.findall(r"\d+", msg)]
         if ints:
-            raise RuntimeError("LLAMA_FAIL: " + " ".join(ints)) from e
+            if "vocab" in msg:
+                raise RuntimeError(f"VOCAB: {max(ints)}") from e
+            if "rope" in msg:
+                raise RuntimeError(f"ROPE: {max(ints)}k") from e
+            raise RuntimeError("LLAMA_FAIL: " + " ".join(map(str, ints))) from e
         raise
     return "ok"
 

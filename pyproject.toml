@@ -12,6 +12,8 @@ license = { file = "LICENSE" }
 authors = [{name = "Aumlit Contributors"}]
 dependencies = [
     "onnx",
+    "onnxruntime",
+    "numpy",
     "gguf",
     "PyYAML",
 ]

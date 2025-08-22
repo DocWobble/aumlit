@@ -9,6 +9,7 @@ from classifier import parse_reason
 def test_error_rules():
     rules_path = Path(__file__).parent.parent / "rules" / "error_rules.yaml"
     cases = yaml.safe_load(rules_path.read_text())
+    assert len(cases) > 50
     for case in cases:
         msg = case["msg"]
         expected = case["update"]
