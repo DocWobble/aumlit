@@ -165,7 +165,7 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     meta = _read_meta(artifact)
 
-    hypotheses: Dict[str, Any] = {}
+    hypotheses: Dict[str, Any] = dict(meta.hints)
     planner = Planner(seed=hypotheses)
     sandbox = spawn_sandbox({"timeout": 2.0})
 
@@ -189,6 +189,7 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
             updates = parse_reason(reason)
             if updates:
                 hypotheses.update(updates)
+                planner.update(hypotheses)
             proof_log.append(f"candidate {combo} -> {reason}")
 
     trace_json = contact_trace(hypotheses, fmt="json")
