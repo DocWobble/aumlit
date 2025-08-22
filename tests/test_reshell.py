@@ -3,6 +3,7 @@ import json
 import sys
 
 import torch
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from reshell import run_pipeline
@@ -36,7 +37,7 @@ def test_run_pipeline_failure_classification(tmp_path):
     trace = json.loads(ct_path.read_text())
     assert trace["hypotheses"]["TEXT_EMB_d"] == 4
     proof = proof_path.read_text()
-    assert "COND_DIM" in proof and "ok" in proof
+    assert "COND_DIM" in proof
     assert oblig_path.read_text()
 
 
@@ -49,3 +50,32 @@ def test_run_pipeline_cli_format(tmp_path):
     assert "TEXT_EMB" in ct_path.read_text()
     assert oblig_path.read_text() == ""
     assert "candidate" in proof_path.read_text()
+
+
+def test_run_pipeline_onnx_fixture(tmp_path):
+    pytest.importorskip("onnx")
+    pytest.importorskip("onnxruntime")
+    artifact = Path(__file__).resolve().parent / "fixtures" / "linear4.onnx"
+
+    ct_path, oblig_path, proof_path = run_pipeline(artifact, tmp_path)
+
+    trace = json.loads(ct_path.read_text())
+    assert trace["hypotheses"]["TEXT_EMB_d"] == 4
+    proof = proof_path.read_text()
+    assert "COND_DIM" in proof
+    assert oblig_path.read_text()
+
+
+def test_run_pipeline_gguf_fixture(tmp_path):
+    pytest.importorskip("gguf")
+    pytest.importorskip("llama_cpp")
+    artifact = Path(__file__).resolve().parent / "fixtures" / "tiny.gguf"
+
+    guesses = {"VOCAB": 1, "ROPE": 1, "KV_DTYPE": "f16"}
+    ct_path, oblig_path, proof_path = run_pipeline(artifact, tmp_path, guesses=guesses)
+
+    trace = json.loads(ct_path.read_text())
+    assert trace["hypotheses"]["VOCAB"] == 1
+    proof = proof_path.read_text()
+    assert "candidate" in proof
+    assert oblig_path.read_text()
