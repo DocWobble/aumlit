@@ -170,6 +170,7 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
     sandbox = spawn_sandbox({"timeout": 2.0})
 
     proof_log: list[str] = []
+    validation: Dict[str, Any] | None = None
     for combo in planner:
         puppet_inputs: Dict[str, Any] = {}
         if "TEXT_EMB_d" in combo:
@@ -183,6 +184,7 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
             sandbox.try_forward(_probe_engine_forward, artifact, puppet_inputs)
             hypotheses.update(combo)
             proof_log.append(f"candidate {combo} -> ok")
+            validation = sandbox.validate_min_run(_probe_engine_forward, artifact, puppet_inputs)
             break
         except Exception as e:  # pragma: no cover - error path
             reason = str(e)
@@ -192,9 +194,9 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
                 planner.update(hypotheses)
             proof_log.append(f"candidate {combo} -> {reason}")
 
-    trace_json = contact_trace(hypotheses, fmt="json")
+    trace_json = contact_trace(hypotheses, validation, fmt="json")
     oblig_json = obligations(hypotheses, fmt="json")
-    proof_text = proof(proof_log, fmt="cli")
+    proof_text = proof(proof_log, validation, fmt="cli")
 
     contact_trace_path = out_dir / "contact_trace.json"
     obligations_path = out_dir / "obligations.json"
