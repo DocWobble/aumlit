@@ -15,6 +15,7 @@ from typing import Any, Dict, Tuple
 
 from headers import Meta, read_gguf_header, read_onnx_header, read_safetensors_header
 from planner import Planner
+from printers import contact_trace, obligations, proof
 from puppets import latent, text_emb, vision_grid
 from sandbox import spawn_sandbox
 
@@ -39,7 +40,7 @@ def _dummy_engine_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
     return "ok"
 
 
-def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path]:
+def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path, Path]:
     """Run a tiny probing loop over candidate combinations."""
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -49,7 +50,7 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path]:
     planner = Planner(seed=hypotheses)
     sandbox = spawn_sandbox({"timeout": 2.0})
 
-    results: list[Dict[str, Any]] = []
+    proof_log: list[str] = []
     for combo in planner:
         puppet_inputs: Dict[str, Any] = {}
         if "TEXT_EMB_d" in combo:
@@ -62,18 +63,23 @@ def run_pipeline(artifact: Path, out_dir: Path) -> Tuple[Path, Path]:
         try:
             sandbox.try_forward(_dummy_engine_forward, artifact, puppet_inputs)
             hypotheses.update(combo)
-            results.append({"candidate": combo, "status": "ok"})
+            proof_log.append(f"candidate {combo} -> ok")
             break
         except Exception as e:  # pragma: no cover - error path
-            results.append({"candidate": combo, "status": "error", "reason": str(e)})
+            proof_log.append(f"candidate {combo} -> error: {e}")
 
-    contact_trace = out_dir / "contact_trace.json"
-    obligations = out_dir / "obligations.json"
-    contact_trace.write_text(json.dumps({"hypotheses": hypotheses, "results": results}))
-    pending = {k: v for k, v in planner.candidates.items() if k not in hypotheses}
-    obligations.write_text(json.dumps(pending))
+    trace_json = contact_trace(hypotheses, fmt="json")
+    oblig_json = obligations(hypotheses, fmt="json")
+    proof_text = proof(proof_log, fmt="cli")
 
-    return contact_trace, obligations
+    contact_trace_path = out_dir / "contact_trace.json"
+    obligations_path = out_dir / "obligations.json"
+    proof_path = out_dir / "proof.txt"
+    contact_trace_path.write_text(json.dumps(trace_json))
+    obligations_path.write_text(json.dumps(oblig_json))
+    proof_path.write_text(proof_text)
+
+    return contact_trace_path, obligations_path, proof_path
 
 
 def main(artifact: str, out_dir: str = "out") -> None:
@@ -87,9 +93,10 @@ def main(artifact: str, out_dir: str = "out") -> None:
         Directory where probe results should be written.  The directory
         is created if it does not exist.
     """
-    contact_trace, obligations = run_pipeline(Path(artifact), Path(out_dir))
+    contact_trace, obligations, proof_file = run_pipeline(Path(artifact), Path(out_dir))
     print(f"contact trace written to: {contact_trace}")
     print(f"obligations written to: {obligations}")
+    print(f"proof transcript written to: {proof_file}")
 
 
 if __name__ == "__main__":
