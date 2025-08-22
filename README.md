@@ -24,3 +24,23 @@ reshell --artifact path/to/model.safetensors --out out_dir
 ```
 
 The command prints placeholder locations for `contact_trace.json`, `obligations.json`, and `proof.txt`.
+
+## Building standalone binaries
+
+Standalone binaries can be produced with [PyInstaller](https://pyinstaller.org/).
+
+On Linux and macOS:
+
+```bash
+make build
+```
+
+On Windows:
+
+```powershell
+.\build.ps1
+```
+
+The resulting executable is written to the `dist/` directory.
+
+Prebuilt binaries for common platforms are published with each GitHub release.
