@@ -42,6 +42,13 @@ def test_obligations_comfy():
     assert nodes["AUDIO_ENCODER"]["params"] == {"shape": None}
 
 
+def test_obligations_cli():
+    hyp = {"TEXT_EMB_d": 2048}
+    oblig_cli = printers.obligations(hyp, fmt="cli")
+    oblig_json = printers.obligations(hyp, fmt="json")
+    assert oblig_cli == "\n".join(oblig_json)
+
+
 def test_proof_ignores_comfy():
     log = ["a", "b"]
     assert printers.proof(log, fmt="comfy") == printers.proof(log, fmt="cli")
