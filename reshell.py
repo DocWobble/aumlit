@@ -15,7 +15,13 @@ from typing import Any, Dict, Mapping, Tuple
 
 from classifier import parse_reason
 
-from headers import Meta, read_gguf_header, read_onnx_header, read_safetensors_header
+from headers import (
+    Meta,
+    read_gguf_header,
+    read_onnx_header,
+    read_safetensors_header,
+    header_class_key,
+)
 from planner import Planner
 from printers import contact_trace, obligations, proof
 from puppets import audio_mel, latent, text_emb, vision_grid
@@ -93,6 +99,24 @@ def _parse_limits(limits: str | None) -> Dict[str, int | float | str]:
     return result
 
 
+def _load_header_cache(cache_dir: Path | str) -> Dict[str, Any]:
+    path = Path(cache_dir) / "header_cache.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+
+def _save_header_cache(cache_dir: Path | str, cache: Mapping[str, Any]) -> None:
+    path = Path(cache_dir) / "header_cache.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cache))
+    tmp.replace(path)
+
+
 def _read_meta(artifact: Path) -> Meta:
     """Dispatch to the appropriate header reader based on suffix."""
 
@@ -116,50 +140,67 @@ def run_pipeline(
     fmt: str | None = None,
 ) -> Tuple[Path, Path, Path]:
     """Run a tiny probing loop over candidate combinations."""
-
     out_dir.mkdir(parents=True, exist_ok=True)
-    meta = _read_meta(artifact)
 
-    hypotheses: Dict[str, Any] = dict(meta.hints)
-    if guesses:
-        hypotheses.update(guesses)
-    planner = Planner(seed=hypotheses)
     limits_dict = dict(limits) if limits else {}
-    cache_dir = limits_dict.pop("cache_dir", None)
-    sandbox = spawn_sandbox(limits_dict or None, cache_dir=cache_dir)
+    cache_dir = limits_dict.get("cache_dir")
 
-    proof_log: list[str] = []
-    validation: Dict[str, Any] | None = None
-    for combo in planner:
-        puppet_inputs: Dict[str, Any] = {}
-        if "TEXT_EMB_d" in combo:
-            puppet_inputs["text"] = text_emb(combo["TEXT_EMB_d"])
-        if "LATENT_C" in combo and "LATENT_SCALE" in combo:
-            puppet_inputs["latent"] = latent(combo["LATENT_C"], combo["LATENT_SCALE"])
-        if "VISION" in combo:
-            puppet_inputs["vision"] = vision_grid(combo["VISION"])
-        if "AUDIO_SHAPE" in combo:
-            puppet_inputs["audio"] = audio_mel(combo["AUDIO_SHAPE"])
-        if "VOCAB" in combo:
-            puppet_inputs["vocab"] = combo["VOCAB"]
-        if "ROPE" in combo:
-            puppet_inputs["rope"] = combo["ROPE"]
-        if "KV_DTYPE" in combo:
-            puppet_inputs["kv_dtype"] = combo["KV_DTYPE"]
+    meta = _read_meta(artifact)
+    key = header_class_key(meta)
+    header_cache: Dict[str, Any] = _load_header_cache(cache_dir) if cache_dir else {}
 
-        try:
-            sandbox.try_forward(try_forward, artifact, puppet_inputs)
-            hypotheses.update(combo)
-            proof_log.append(f"candidate {combo} -> ok")
-            validation = sandbox.validate_min_run(try_forward, artifact, puppet_inputs)
-            break
-        except Exception as e:  # pragma: no cover - error path
-            reason = str(e)
-            updates = parse_reason(reason)
-            if updates:
-                hypotheses.update(updates)
-                planner.update(updates)
-            proof_log.append(f"candidate {combo} -> {reason}")
+    if cache_dir and key in header_cache:
+        entry = header_cache[key]
+        hypotheses = dict(entry.get("hypotheses", {}))
+        validation = entry.get("validation")
+        proof_log = [f"recognized header {key}"]
+        print(f"[reshell] recognized header {key}")
+    else:
+        hypotheses: Dict[str, Any] = dict(meta.hints)
+        if guesses:
+            hypotheses.update(guesses)
+        planner = Planner(seed=hypotheses)
+        cache_dir = limits_dict.pop("cache_dir", None)
+        sandbox = spawn_sandbox(limits_dict or None, cache_dir=cache_dir)
+
+        proof_log: list[str] = []
+        validation: Dict[str, Any] | None = None
+        for combo in planner:
+            puppet_inputs: Dict[str, Any] = {}
+            if "TEXT_EMB_d" in combo:
+                puppet_inputs["text"] = text_emb(combo["TEXT_EMB_d"])
+            if "LATENT_C" in combo and "LATENT_SCALE" in combo:
+                puppet_inputs["latent"] = latent(combo["LATENT_C"], combo["LATENT_SCALE"])
+            if "VISION" in combo:
+                puppet_inputs["vision"] = vision_grid(combo["VISION"])
+            if "AUDIO_SHAPE" in combo:
+                puppet_inputs["audio"] = audio_mel(combo["AUDIO_SHAPE"])
+            if "VOCAB" in combo:
+                puppet_inputs["vocab"] = combo["VOCAB"]
+            if "ROPE" in combo:
+                puppet_inputs["rope"] = combo["ROPE"]
+            if "KV_DTYPE" in combo:
+                puppet_inputs["kv_dtype"] = combo["KV_DTYPE"]
+
+            try:
+                sandbox.try_forward(try_forward, artifact, puppet_inputs)
+                hypotheses.update(combo)
+                proof_log.append(f"candidate {combo} -> ok")
+                validation = sandbox.validate_min_run(try_forward, artifact, puppet_inputs)
+                break
+            except Exception as e:  # pragma: no cover - error path
+                reason = str(e)
+                updates = parse_reason(reason)
+                if updates:
+                    hypotheses.update(updates)
+                    planner.update(updates)
+                proof_log.append(f"candidate {combo} -> {reason}")
+
+        if cache_dir:
+            header_cache[key] = {"hypotheses": hypotheses}
+            if validation:
+                header_cache[key]["validation"] = validation
+            _save_header_cache(cache_dir, header_cache)
 
     trace_out = contact_trace(hypotheses, validation, fmt=fmt or "json")
     oblig_out = obligations(hypotheses, fmt=fmt or "json")
