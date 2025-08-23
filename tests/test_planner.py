@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from planner import Planner
+from planner import Planner, probe_signature
 
 
 def test_planner_update_prunes_and_resets():
@@ -43,3 +43,11 @@ def test_planner_ordering():
     assert first["AUDIO_SHAPE"] != second["AUDIO_SHAPE"]
     assert first["VISION"] == second["VISION"]
     assert first["TEXT_EMB_d"] == second["TEXT_EMB_d"]
+
+
+def test_planner_skips_failed_probes():
+    defaults = {"A": [1, 2], "B": [3]}
+    sig = probe_signature({"A": 1, "B": 3})
+    p = Planner(seed={}, defaults=defaults, order=["A", "B"], failed_probes={sig})
+    combo = next(p)
+    assert combo == {"A": 2, "B": 3}

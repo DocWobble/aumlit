@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Any, Dict, Iterator, Mapping, Sequence
+import hashlib
+import json
+from typing import Any, Dict, Iterator, Mapping, Sequence, Set
 
 DEFAULT_CANDIDATES: Dict[str, Sequence[Any]] = {
     "TEXT_EMB_d": [768, 1024, 1280, 1536, 2048, 4096],
@@ -60,6 +62,13 @@ def plan_candidates(
     return result
 
 
+def probe_signature(combo: Mapping[str, Any]) -> str:
+    """Stable hash for a probe ``combo``."""
+
+    blob = json.dumps(combo, sort_keys=True)
+    return hashlib.sha256(blob.encode()).hexdigest()
+
+
 @dataclass
 class Planner:
     """Iterate through probe candidate combinations.
@@ -73,6 +82,7 @@ class Planner:
         default_factory=lambda: DEFAULT_CANDIDATES
     )
     order: Sequence[str] = field(default_factory=lambda: ORDER)
+    failed_probes: Set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
         self.candidates = plan_candidates(self.seed, self.defaults)
@@ -86,8 +96,12 @@ class Planner:
         return self
 
     def __next__(self) -> Dict[str, Any]:
-        values = next(self._iter)
-        return dict(zip(self._keys, values))
+        while True:
+            values = next(self._iter)
+            combo = dict(zip(self._keys, values))
+            sig = probe_signature(combo)
+            if sig not in self.failed_probes:
+                return combo
 
     def update(self, hyp: Mapping[str, Any]) -> None:
         """Prune candidate lists according to ``hyp`` and reset iteration.
@@ -110,4 +124,4 @@ class Planner:
             self._iter = product(*(self.candidates[k] for k in keys))
 
 
-__all__ = ["DEFAULT_CANDIDATES", "plan_candidates", "Planner"]
+__all__ = ["DEFAULT_CANDIDATES", "plan_candidates", "probe_signature", "Planner"]
