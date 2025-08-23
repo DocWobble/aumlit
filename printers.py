@@ -151,7 +151,6 @@ def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
 
     if fmt == "cli":
         return "\n".join(entries)
-
     if fmt == "json":
         return entries
     if fmt == "comfy":
