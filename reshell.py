@@ -1,7 +1,7 @@
 """Command-line entry point for Reshell probing.
 
 This module wires together the tiny planning utilities and the sandbox
-to perform a single probing run.  The probing is intentionally minimal:
+to perform a single probing run. The probing is intentionally minimal:
 we iterate through candidate combinations, invoke engine helpers inside a
 resource-limited subprocess, record outcomes and update our hypotheses
 until one run succeeds.
@@ -32,7 +32,6 @@ from oracles import try_forward
 
 def _parse_assignments(spec: str | None) -> Dict[str, str]:
     """Parse comma-separated ``key=value`` pairs into a dict."""
-
     result: Dict[str, str] = {}
     if not spec:
         return result
@@ -46,7 +45,6 @@ def _parse_assignments(spec: str | None) -> Dict[str, str]:
 
 def _parse_guess(guess: str | None) -> Dict[str, Any]:
     """Parse ``--guess`` into hypothesis overrides."""
-
     mapping = {
         "d": "TEXT_EMB_d",
         "C": "LATENT_C",
@@ -67,10 +65,8 @@ def _parse_guess(guess: str | None) -> Dict[str, Any]:
 def _parse_limits(limits: str | None) -> Dict[str, int | float | str]:
     """Parse ``--limits`` into ``spawn_sandbox`` kwargs.
 
-    Supported keys include ``timeout``, ``vram``, ``cpu_mem`` and
-    ``cache_dir``.
+    Supported keys include ``timeout``, ``vram``, ``cpu_mem`` and ``cache_dir``.
     """
-
     result: Dict[str, int | float | str] = {}
     for key, val in _parse_assignments(limits).items():
         lk = key.strip()
@@ -120,7 +116,6 @@ def _save_header_cache(cache_dir: Path | str, cache: Mapping[str, Any]) -> None:
 
 def _read_meta(artifact: Path) -> Meta:
     """Dispatch to the appropriate header reader based on suffix."""
-
     suffix = artifact.suffix.lower()
     if suffix == ".safetensors":
         return read_safetensors_header(artifact)
@@ -133,9 +128,8 @@ def _read_meta(artifact: Path) -> Meta:
 
 def _header_hash(meta: Meta) -> str:
     """Compute a stable hash for ``meta``."""
-
     blob = {
-        "tensors": [(t.name, t.shape) for t in meta.tensors],
+        "tensors": [(t.name, tuple(t.shape)) for t in meta.tensors],
         "hints": meta.hints,
     }
     raw = json.dumps(blob, sort_keys=True)
@@ -175,7 +169,7 @@ def run_pipeline(
         if guesses:
             hypotheses.update(guesses)
 
-        # Seed planner with previously failed probe signatures (avoid re-trying).
+        # Avoid re-trying previously failed probe signatures for this header.
         planner = Planner(seed=hypotheses, failed_probes=set(known_failures.keys()))
 
         # Only pass non-cache args to the sandbox
@@ -211,11 +205,11 @@ def run_pipeline(
             except Exception as e:  # pragma: no cover - error path
                 reason = str(e)
                 updates = parse_reason(reason)
-                # Record the failure signature with a simple error class
+                # Record the failure signature with a simple error class.
                 if failure_cache:
                     err_cls = next(iter(updates), "OTHER") if updates else "OTHER"
                     failure_cache.record(header_id, probe_signature(combo), err_cls)
-                # Feed updates back into hypotheses and planner
+                # Feed updates back into hypotheses and planner.
                 if updates:
                     hypotheses.update(updates)
                     planner.update(updates)
@@ -249,24 +243,7 @@ def _run(
     fmt: str | None = None,
     failures: str | None = None,
 ) -> None:
-    """Delegate to the probing pipeline.
-
-    Parameters
-    ----------
-    artifact:
-        Path to the model artifact to analyse.
-    out_dir:
-        Directory where probe results should be written.  The directory
-        is created if it does not exist.
-    guess:
-        Optional hypothesis overrides (``key=value`` pairs).
-    limits:
-        Optional sandbox limits and cache directory
-        (``timeout=2s,vram=1GB,cache_dir=/tmp/cache``).
-    fmt:
-        Optional printer output format.
-    """
-
+    """Delegate to the probing pipeline."""
     guesses = _parse_guess(guess)
     limits_map = _parse_limits(limits)
     cache_base = Path(limits_map.get("cache_dir", out_dir))

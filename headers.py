@@ -10,8 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-import json
 import hashlib
+import json
 
 
 @dataclass
@@ -63,16 +63,20 @@ def read_safetensors_header(path: Path | str) -> Meta:
 def header_class_key(meta: Meta) -> str:
     """Compute a stable key representing the header class.
 
-    The key is a SHA256 hash over tensor names/shapes and scalar hints,
-    allowing cross-artifact reuse when headers match.
+    The key is a SHA256 over tensor names/shapes and scalar hints.
+    Deterministic sorting ensures order-insensitivity.
     """
-
-    data = {
-        "tensors": [(t.name, t.shape) for t in meta.tensors],
-        "hints": meta.hints,
+    payload = {
+        "tensors": [(t.name, list(t.shape)) for t in sorted(meta.tensors, key=lambda t: t.name)],
+        # sort hints by key for stability; coerce to plain types via JSON
+        "hints": sorted(meta.hints.items()),
     }
-    blob = json.dumps(data, sort_keys=True).encode("utf-8")
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
+
+
+# Back-compat: older code may import/class_key
+class_key = header_class_key
 
 
 def read_onnx_header(path: Path | str) -> Meta:
@@ -140,4 +144,6 @@ __all__ = [
     "read_onnx_header",
     "read_gguf_header",
     "header_class_key",
+    "class_key",  # alias for backward compatibility
 ]
+
