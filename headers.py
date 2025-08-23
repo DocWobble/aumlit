@@ -44,7 +44,11 @@ def read_safetensors_header(path: Path | str) -> Meta:
     p = _ensure_path(path)
     with p.open("rb") as f:
         header_len = int.from_bytes(f.read(8), "little")
-        header = json.loads(f.read(header_len).decode("utf-8"))
+        raw_header = f.read(header_len)
+    try:
+        header = json.loads(raw_header.decode("utf-8"))
+    except (json.JSONDecodeError, ValueError) as e:
+        raise RuntimeError("Malformed safetensors header") from e
 
     hints = header.get("__metadata__", {}) if isinstance(header, dict) else {}
     tensors = [
