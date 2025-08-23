@@ -9,18 +9,18 @@
 
 ## Installation
 
-Install the package and its command-line interface with:
+Install the toolkit from PyPI:
 
 ```bash
-pip install .
+pip install aumlit
 ```
 
 ## Usage
 
-After installation the `reshell` command becomes available:
+After installation the `aumlit` command exposes the `reshell` subcommand:
 
 ```bash
-reshell --artifact path/to/model.safetensors --out out_dir
+aumlit reshell path/to/model.safetensors --out out_dir
 ```
 
 The command prints placeholder locations for `contact_trace.json`, `obligations.json`, and `proof.txt`.
