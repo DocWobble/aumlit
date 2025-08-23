@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 from .onnx import _engine_forward as _onnx_engine_forward
 from .llama import _engine_forward as _llama_engine_forward
-from .torch import _engine_forward as _torch_engine_forward
+from . import torch as torch_oracle
 from .xformers import _engine_forward as _xformers_attention_probe
 
 
@@ -22,4 +22,4 @@ def try_forward(artifact: Path, inputs: Dict[str, Any]) -> str:
         _xformers_attention_probe()
     except Exception:
         pass
-    return _torch_engine_forward(artifact, inputs)
+    return torch_oracle._engine_forward(artifact, inputs)
