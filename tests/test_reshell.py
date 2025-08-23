@@ -8,6 +8,7 @@ import pytest
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import reshell
 from reshell import run_pipeline
+import oracles.torch as torch_oracle
 
 
 def _save_linear(in_features: int, path: Path) -> None:
@@ -69,7 +70,7 @@ def test_run_pipeline_multiple_hints(monkeypatch, tmp_path):
             raise RuntimeError(" ".join(msgs))
         return "ok"
 
-    monkeypatch.setattr(reshell, "_torch_engine_forward", fake_forward)
+    monkeypatch.setattr(torch_oracle, "_engine_forward", fake_forward)
 
     ct_path, oblig_path, proof_path = run_pipeline(artifact, tmp_path)
 

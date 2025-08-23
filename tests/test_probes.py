@@ -5,7 +5,8 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from classifier import parse_reason
-from reshell import _onnx_engine_forward, _llama_engine_forward
+from oracles.onnx import _engine_forward as _onnx_engine_forward
+from oracles.llama import _engine_forward as _llama_engine_forward
 
 
 # ---- ONNX -----------------------------------------------------------
