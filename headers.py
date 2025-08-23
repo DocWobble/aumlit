@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import json
+import hashlib
 
 
 @dataclass
@@ -57,6 +58,21 @@ def read_safetensors_header(path: Path | str) -> Meta:
         if name != "__metadata__"
     ]
     return Meta(tensors=tensors, hints=dict(hints))
+
+
+def header_class_key(meta: Meta) -> str:
+    """Compute a stable key representing the header class.
+
+    The key is a SHA256 hash over tensor names/shapes and scalar hints,
+    allowing cross-artifact reuse when headers match.
+    """
+
+    data = {
+        "tensors": [(t.name, t.shape) for t in meta.tensors],
+        "hints": meta.hints,
+    }
+    blob = json.dumps(data, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
 
 
 def read_onnx_header(path: Path | str) -> Meta:
@@ -123,4 +139,5 @@ __all__ = [
     "read_safetensors_header",
     "read_onnx_header",
     "read_gguf_header",
+    "header_class_key",
 ]

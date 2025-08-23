@@ -15,10 +15,15 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Tuple
 
 from classifier import parse_reason
-
-from headers import Meta, read_gguf_header, read_onnx_header, read_safetensors_header
 from planner import Planner, probe_signature
 from failure_cache import FailureCache
+from headers import (
+    Meta,
+    read_gguf_header,
+    read_onnx_header,
+    read_safetensors_header,
+    header_class_key,
+)
 from printers import contact_trace, obligations, proof
 from puppets import audio_mel, latent, text_emb, vision_grid
 from sandbox import spawn_sandbox
@@ -95,6 +100,24 @@ def _parse_limits(limits: str | None) -> Dict[str, int | float | str]:
     return result
 
 
+def _load_header_cache(cache_dir: Path | str) -> Dict[str, Any]:
+    path = Path(cache_dir) / "header_cache.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+
+def _save_header_cache(cache_dir: Path | str, cache: Mapping[str, Any]) -> None:
+    path = Path(cache_dir) / "header_cache.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cache))
+    tmp.replace(path)
+
+
 def _read_meta(artifact: Path) -> Meta:
     """Dispatch to the appropriate header reader based on suffix."""
 
@@ -119,8 +142,6 @@ def _header_hash(meta: Meta) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-
-
 def run_pipeline(
     artifact: Path,
     out_dir: Path,
@@ -130,55 +151,81 @@ def run_pipeline(
     failure_cache: FailureCache | None = None,
 ) -> Tuple[Path, Path, Path]:
     """Run a tiny probing loop over candidate combinations."""
-
     out_dir.mkdir(parents=True, exist_ok=True)
-    meta = _read_meta(artifact)
-    header_id = _header_hash(meta)
 
-    hypotheses: Dict[str, Any] = dict(meta.hints)
-    if guesses:
-        hypotheses.update(guesses)
-    known_failures = failure_cache.get(header_id) if failure_cache else {}
-    planner = Planner(seed=hypotheses, failed_probes=set(known_failures.keys()))
     limits_dict = dict(limits) if limits else {}
-    cache_dir = limits_dict.pop("cache_dir", None)
-    sandbox = spawn_sandbox(limits_dict or None, cache_dir=cache_dir)
+    cache_dir = limits_dict.get("cache_dir")
 
-    proof_log: list[str] = []
-    validation: Dict[str, Any] | None = None
-    for combo in planner:
-        puppet_inputs: Dict[str, Any] = {}
-        if "TEXT_EMB_d" in combo:
-            puppet_inputs["text"] = text_emb(combo["TEXT_EMB_d"])
-        if "LATENT_C" in combo and "LATENT_SCALE" in combo:
-            puppet_inputs["latent"] = latent(combo["LATENT_C"], combo["LATENT_SCALE"])
-        if "VISION" in combo:
-            puppet_inputs["vision"] = vision_grid(combo["VISION"])
-        if "AUDIO_SHAPE" in combo:
-            puppet_inputs["audio"] = audio_mel(combo["AUDIO_SHAPE"])
-        if "VOCAB" in combo:
-            puppet_inputs["vocab"] = combo["VOCAB"]
-        if "ROPE" in combo:
-            puppet_inputs["rope"] = combo["ROPE"]
-        if "KV_DTYPE" in combo:
-            puppet_inputs["kv_dtype"] = combo["KV_DTYPE"]
+    meta = _read_meta(artifact)
+    key = header_class_key(meta)
+    header_cache: Dict[str, Any] = _load_header_cache(cache_dir) if cache_dir else {}
 
-        try:
-            sandbox.try_forward(try_forward, artifact, puppet_inputs)
-            hypotheses.update(combo)
-            proof_log.append(f"candidate {combo} -> ok")
-            validation = sandbox.validate_min_run(try_forward, artifact, puppet_inputs)
-            break
-        except Exception as e:  # pragma: no cover - error path
-            reason = str(e)
-            updates = parse_reason(reason)
-            err_cls = next(iter(updates), "OTHER")
-            if failure_cache:
-                failure_cache.record(header_id, probe_signature(combo), err_cls)
-            if updates:
-                hypotheses.update(updates)
-                planner.update(updates)
-            proof_log.append(f"candidate {combo} -> {reason}")
+    # Failure-signature support
+    header_id = _header_hash(meta)
+    known_failures: Dict[str, Any] = failure_cache.get(header_id) if failure_cache else {}
+
+    if cache_dir and key in header_cache:
+        entry = header_cache[key]
+        hypotheses: Dict[str, Any] = dict(entry.get("hypotheses", {}))
+        validation = entry.get("validation")
+        proof_log: list[str] = [f"recognized header {key}"]
+        print(f"[reshell] recognized header {key}")
+    else:
+        hypotheses: Dict[str, Any] = dict(meta.hints)
+        if guesses:
+            hypotheses.update(guesses)
+
+        # Seed planner with previously failed probe signatures (avoid re-trying).
+        planner = Planner(seed=hypotheses, failed_probes=set(known_failures.keys()))
+
+        # Only pass non-cache args to the sandbox
+        cache_dir = limits_dict.pop("cache_dir", None)
+        sandbox = spawn_sandbox(limits_dict or None, cache_dir=cache_dir)
+
+        proof_log: list[str] = []
+        validation: Dict[str, Any] | None = None
+
+        for combo in planner:
+            puppet_inputs: Dict[str, Any] = {}
+            if "TEXT_EMB_d" in combo:
+                puppet_inputs["text"] = text_emb(combo["TEXT_EMB_d"])
+            if "LATENT_C" in combo and "LATENT_SCALE" in combo:
+                puppet_inputs["latent"] = latent(combo["LATENT_C"], combo["LATENT_SCALE"])
+            if "VISION" in combo:
+                puppet_inputs["vision"] = vision_grid(combo["VISION"])
+            if "AUDIO_SHAPE" in combo:
+                puppet_inputs["audio"] = audio_mel(combo["AUDIO_SHAPE"])
+            if "VOCAB" in combo:
+                puppet_inputs["vocab"] = combo["VOCAB"]
+            if "ROPE" in combo:
+                puppet_inputs["rope"] = combo["ROPE"]
+            if "KV_DTYPE" in combo:
+                puppet_inputs["kv_dtype"] = combo["KV_DTYPE"]
+
+            try:
+                sandbox.try_forward(try_forward, artifact, puppet_inputs)
+                hypotheses.update(combo)
+                proof_log.append(f"candidate {combo} -> ok")
+                validation = sandbox.validate_min_run(try_forward, artifact, puppet_inputs)
+                break
+            except Exception as e:  # pragma: no cover - error path
+                reason = str(e)
+                updates = parse_reason(reason)
+                # Record the failure signature with a simple error class
+                if failure_cache:
+                    err_cls = next(iter(updates), "OTHER") if updates else "OTHER"
+                    failure_cache.record(header_id, probe_signature(combo), err_cls)
+                # Feed updates back into hypotheses and planner
+                if updates:
+                    hypotheses.update(updates)
+                    planner.update(updates)
+                proof_log.append(f"candidate {combo} -> {reason}")
+
+        if cache_dir:
+            header_cache[key] = {"hypotheses": hypotheses}
+            if validation:
+                header_cache[key]["validation"] = validation
+            _save_header_cache(cache_dir, header_cache)
 
     trace_out = contact_trace(hypotheses, validation, fmt=fmt or "json")
     oblig_out = obligations(hypotheses, fmt=fmt or "json")
@@ -236,7 +283,7 @@ def _run(
             print("cleared cached failures")
         return
 
-    contact_trace, obligations, proof_file = run_pipeline(
+    contact_trace_path, obligations_path, proof_file = run_pipeline(
         Path(artifact),
         Path(out_dir),
         guesses=guesses,
@@ -244,8 +291,8 @@ def _run(
         fmt=fmt,
         failure_cache=failure_cache,
     )
-    print(f"contact trace written to: {contact_trace}")
-    print(f"obligations written to: {obligations}")
+    print(f"contact trace written to: {contact_trace_path}")
+    print(f"obligations written to: {obligations_path}")
     print(f"proof transcript written to: {proof_file}")
 
 

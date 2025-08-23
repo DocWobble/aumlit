@@ -108,3 +108,29 @@ def test_run_pipeline_gguf_fixture(tmp_path):
     assert "candidate" in proof
     assert oblig_path.read_text()
 
+
+def test_run_pipeline_header_cache(monkeypatch, tmp_path):
+    artifact = tmp_path / "lin256.pt"
+    _save_linear(256, artifact)
+    cache_dir = tmp_path / "cache"
+
+    # first run populates cache
+    run_pipeline(artifact, tmp_path / "out1", limits={"cache_dir": cache_dir})
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("try_forward should not be called on cache hit")
+
+    monkeypatch.setattr(reshell, "try_forward", fail)
+
+    # second run with same headers should hit cache and skip probes
+    artifact2 = tmp_path / "lin256_copy.pt"
+    _save_linear(256, artifact2)
+    ct_path, oblig_path, proof_path = run_pipeline(
+        artifact2, tmp_path / "out2", limits={"cache_dir": cache_dir}
+    )
+
+    trace = json.loads(ct_path.read_text())
+    assert trace["hypotheses"]["TEXT_EMB_d"] == 256
+    assert "recognized header" in proof_path.read_text()
+    assert oblig_path.read_text()
+
