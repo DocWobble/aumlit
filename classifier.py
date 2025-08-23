@@ -38,8 +38,10 @@ except (FileNotFoundError, yaml.YAMLError, OSError):
 
 def parse_reason(msg: str) -> Dict[str, Any]:
     """Extract all hypothesis updates from ``msg`` using regex rules."""
-    if "'" in msg:
-        msg = msg.split("'", 2)[1]
+    msg = msg.strip()
+    m = re.match(r"^(['\"])(.*)\1$", msg)
+    if m:
+        msg = m.group(2)
     updates: Dict[str, Any] = {}
     for key, pattern in ERROR_PATTERNS.items():
         for m in re.finditer(pattern, msg, re.IGNORECASE):

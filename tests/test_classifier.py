@@ -19,3 +19,8 @@ def test_error_rules():
 def test_multiple_hints_collected():
     msg = "COND_DIM: expected 4 LATENT_C: expected 8"
     assert parse_reason(msg) == {"TEXT_EMB_d": 4, "LATENT_C": 8}
+
+
+def test_surrounding_quotes_removed_but_inner_preserved():
+    msg = "'LATENT_C: expected 4 and 'inner' noise'"
+    assert parse_reason(msg) == {"LATENT_C": 4}
