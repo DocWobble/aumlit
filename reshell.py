@@ -236,7 +236,7 @@ def run_pipeline(
 
 
 def _run(
-    artifact: str,
+    artifact: str | None,
     out_dir: str = "out",
     guess: str | None = None,
     limits: str | None = None,
@@ -248,6 +248,18 @@ def _run(
     limits_map = _parse_limits(limits)
     cache_base = Path(limits_map.get("cache_dir", out_dir))
     failure_cache = FailureCache(cache_base / "failure_cache.json")
+
+    if failures in {"inspect-all", "clear-all"}:
+        if failures == "inspect-all":
+            data = failure_cache.inspect()
+            print(json.dumps(data, indent=2))
+        else:
+            failure_cache.clear()
+            print("cleared cached failures")
+        return
+
+    if artifact is None:
+        raise SystemExit("--artifact required unless using --failures inspect-all|clear-all")
 
     if failures in {"inspect", "clear"}:
         meta = _read_meta(Path(artifact))
@@ -276,7 +288,7 @@ def _run(
 def main() -> None:
     """Entry-point for the console script."""
     parser = argparse.ArgumentParser(description="Probe a model artifact")
-    parser.add_argument("--artifact", required=True, help="path to model artifact")
+    parser.add_argument("--artifact", help="path to model artifact")
     parser.add_argument("--out", default="out", help="output directory for results")
     parser.add_argument("--guess", help="seed hypotheses", default=None)
     parser.add_argument(
@@ -287,8 +299,8 @@ def main() -> None:
     parser.add_argument("--format", dest="fmt", help="printer output format", default=None)
     parser.add_argument(
         "--failures",
-        choices=["inspect", "clear"],
-        help="inspect or clear cached probe failures",
+        choices=["inspect", "clear", "inspect-all", "clear-all"],
+        help="inspect or clear cached probe failures (use *-all for global)",
         default=None,
     )
     args = parser.parse_args()
