@@ -15,7 +15,7 @@ from typing import Any, Dict, Mapping, Tuple
 
 from classifier import parse_reason
 
-from headers import Meta, read_gguf_header, read_onnx_header, read_safetensors_header
+from headers import Meta, class_key, read_gguf_header, read_onnx_header, read_safetensors_header
 from planner import Planner
 from printers import contact_trace, obligations, proof
 from puppets import audio_mel, latent, text_emb, vision_grid
@@ -119,6 +119,7 @@ def run_pipeline(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     meta = _read_meta(artifact)
+    hdr_key = class_key(meta)
 
     hypotheses: Dict[str, Any] = dict(meta.hints)
     if guesses:
@@ -148,7 +149,7 @@ def run_pipeline(
             puppet_inputs["kv_dtype"] = combo["KV_DTYPE"]
 
         try:
-            sandbox.try_forward(try_forward, artifact, puppet_inputs)
+            sandbox.try_forward(try_forward, artifact, puppet_inputs, class_key=hdr_key)
             hypotheses.update(combo)
             proof_log.append(f"candidate {combo} -> ok")
             validation = sandbox.validate_min_run(try_forward, artifact, puppet_inputs)

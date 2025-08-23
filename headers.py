@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+import hashlib
 import json
 
 
@@ -57,6 +58,22 @@ def read_safetensors_header(path: Path | str) -> Meta:
         if name != "__metadata__"
     ]
     return Meta(tensors=tensors, hints=dict(hints))
+
+
+def class_key(meta: Meta) -> str:
+    """Return a stable hash representing a model's "object class".
+
+    The key is derived solely from header information (tensor names,
+    shapes and scalar hints).  Artifacts with identical headers will
+    therefore yield the same key regardless of their byte contents.
+    """
+
+    payload = {
+        "t": [(t.name, list(t.shape)) for t in sorted(meta.tensors, key=lambda t: t.name)],
+        "h": sorted(meta.hints.items()),
+    }
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
 
 
 def read_onnx_header(path: Path | str) -> Meta:
@@ -120,6 +137,7 @@ def read_gguf_header(path: Path | str) -> Meta:
 __all__ = [
     "TensorInfo",
     "Meta",
+    "class_key",
     "read_safetensors_header",
     "read_onnx_header",
     "read_gguf_header",
