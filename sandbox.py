@@ -97,7 +97,11 @@ class Sandbox:
         if args and isinstance(args[0], (str, os.PathLike, Path)):
             try:
                 artifact_path = Path(args[0])
-                artifact_sha256 = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+                hasher = hashlib.sha256()
+                with artifact_path.open("rb") as fh:
+                    for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                        hasher.update(chunk)
+                artifact_sha256 = hasher.hexdigest()
                 sig_src = repr((args[1:], sorted(kwargs.items())))
                 probe_signature = hashlib.sha256(sig_src.encode()).hexdigest()
                 key = (artifact_sha256, probe_signature)
