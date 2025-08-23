@@ -147,11 +147,10 @@ def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
     """
 
 
-    if fmt == "cli":
-        return ""
-
     entries = [template.format(hyp.get(key, "?")) for key, template in _OBLIGATION_TEMPLATES.items()]
 
+    if fmt == "cli":
+        return "\n".join(entries)
     if fmt == "json":
         return entries
     if fmt == "comfy":
