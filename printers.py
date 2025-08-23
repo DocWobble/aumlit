@@ -147,13 +147,13 @@ def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
     """
 
 
-    entries = [template.format(hyp.get(key, "?")) for key, template in _OBLIGATION_TEMPLATES.items()]
+    if fmt == "cli":
+        return ""
 
+    entries = [template.format(hyp.get(key, "?")) for key, template in _OBLIGATION_TEMPLATES.items()]
 
     if fmt == "json":
         return entries
-    if fmt == "cli":
-        return "\n".join(f"* {e}" for e in entries)
     if fmt == "comfy":
         nodes: List[Dict[str, Any]] = []
         if "TEXT_EMB_d" not in hyp:
