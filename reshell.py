@@ -10,13 +10,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 from pathlib import Path
 from typing import Any, Dict, Mapping, Tuple
 
 from classifier import parse_reason
 
 from headers import Meta, read_gguf_header, read_onnx_header, read_safetensors_header
-from planner import Planner
+from planner import Planner, probe_signature
+from failure_cache import FailureCache
 from printers import contact_trace, obligations, proof
 from puppets import audio_mel, latent, text_emb, vision_grid
 from sandbox import spawn_sandbox
@@ -106,6 +108,17 @@ def _read_meta(artifact: Path) -> Meta:
     return Meta(tensors=[], hints={})
 
 
+def _header_hash(meta: Meta) -> str:
+    """Compute a stable hash for ``meta``."""
+
+    blob = {
+        "tensors": [(t.name, t.shape) for t in meta.tensors],
+        "hints": meta.hints,
+    }
+    raw = json.dumps(blob, sort_keys=True)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 
 
 def run_pipeline(
@@ -114,16 +127,19 @@ def run_pipeline(
     guesses: Mapping[str, Any] | None = None,
     limits: Mapping[str, Any] | None = None,
     fmt: str | None = None,
+    failure_cache: FailureCache | None = None,
 ) -> Tuple[Path, Path, Path]:
     """Run a tiny probing loop over candidate combinations."""
 
     out_dir.mkdir(parents=True, exist_ok=True)
     meta = _read_meta(artifact)
+    header_id = _header_hash(meta)
 
     hypotheses: Dict[str, Any] = dict(meta.hints)
     if guesses:
         hypotheses.update(guesses)
-    planner = Planner(seed=hypotheses)
+    known_failures = failure_cache.get(header_id) if failure_cache else {}
+    planner = Planner(seed=hypotheses, failed_probes=set(known_failures.keys()))
     limits_dict = dict(limits) if limits else {}
     cache_dir = limits_dict.pop("cache_dir", None)
     sandbox = spawn_sandbox(limits_dict or None, cache_dir=cache_dir)
@@ -156,6 +172,9 @@ def run_pipeline(
         except Exception as e:  # pragma: no cover - error path
             reason = str(e)
             updates = parse_reason(reason)
+            err_cls = next(iter(updates), "OTHER")
+            if failure_cache:
+                failure_cache.record(header_id, probe_signature(combo), err_cls)
             if updates:
                 hypotheses.update(updates)
                 planner.update(updates)
@@ -181,6 +200,7 @@ def _run(
     guess: str | None = None,
     limits: str | None = None,
     fmt: str | None = None,
+    failures: str | None = None,
 ) -> None:
     """Delegate to the probing pipeline.
 
@@ -202,8 +222,27 @@ def _run(
 
     guesses = _parse_guess(guess)
     limits_map = _parse_limits(limits)
+    cache_base = Path(limits_map.get("cache_dir", out_dir))
+    failure_cache = FailureCache(cache_base / "failure_cache.json")
+
+    if failures in {"inspect", "clear"}:
+        meta = _read_meta(Path(artifact))
+        header_id = _header_hash(meta)
+        if failures == "inspect":
+            data = failure_cache.inspect(header_id)
+            print(json.dumps(data, indent=2))
+        else:
+            failure_cache.clear(header_id)
+            print("cleared cached failures")
+        return
+
     contact_trace, obligations, proof_file = run_pipeline(
-        Path(artifact), Path(out_dir), guesses=guesses, limits=limits_map, fmt=fmt
+        Path(artifact),
+        Path(out_dir),
+        guesses=guesses,
+        limits=limits_map,
+        fmt=fmt,
+        failure_cache=failure_cache,
     )
     print(f"contact trace written to: {contact_trace}")
     print(f"obligations written to: {obligations}")
@@ -222,9 +261,15 @@ def main() -> None:
         default=None,
     )
     parser.add_argument("--format", dest="fmt", help="printer output format", default=None)
+    parser.add_argument(
+        "--failures",
+        choices=["inspect", "clear"],
+        help="inspect or clear cached probe failures",
+        default=None,
+    )
     args = parser.parse_args()
 
-    _run(args.artifact, args.out, args.guess, args.limits, args.fmt)
+    _run(args.artifact, args.out, args.guess, args.limits, args.fmt, args.failures)
 
 
 if __name__ == "__main__":
