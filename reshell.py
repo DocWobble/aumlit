@@ -13,6 +13,7 @@ import json
 import hashlib
 from pathlib import Path
 from typing import Any, Dict, Mapping, Tuple
+from filelock import FileLock
 
 from classifier import parse_reason
 from planner import Planner, probe_signature
@@ -109,9 +110,11 @@ def _load_header_cache(cache_dir: Path | str) -> Dict[str, Any]:
 def _save_header_cache(cache_dir: Path | str, cache: Mapping[str, Any]) -> None:
     path = Path(cache_dir) / "header_cache.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(cache))
-    tmp.replace(path)
+    lock = FileLock(str(path) + ".lock")
+    with lock:
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(cache))
+        tmp.replace(path)
 
 
 def _read_meta(artifact: Path) -> Meta:

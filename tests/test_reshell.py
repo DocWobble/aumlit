@@ -4,6 +4,7 @@ import sys
 
 import torch
 import pytest
+import threading
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import reshell
@@ -133,4 +134,23 @@ def test_run_pipeline_header_cache(monkeypatch, tmp_path):
     assert trace["hypotheses"]["TEXT_EMB_d"] == 256
     assert "recognized header" in proof_path.read_text()
     assert oblig_path.read_text()
+
+
+def test_header_cache_concurrent_writes(tmp_path):
+    cache_dir = tmp_path / "cache"
+
+    def worker(idx: int) -> None:
+        cache = reshell._load_header_cache(cache_dir)
+        cache[str(idx)] = idx
+        reshell._save_header_cache(cache_dir, cache)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # ensure resulting cache file is valid JSON
+    data = reshell._load_header_cache(cache_dir)
+    assert isinstance(data, dict)
 

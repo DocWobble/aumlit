@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 from typing import Dict, Mapping
+from filelock import FileLock
 
 
 class FailureCache:
@@ -44,9 +45,11 @@ class FailureCache:
     def _save(self) -> None:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self.data))
-            tmp.replace(self.path)
+            lock = FileLock(str(self.path) + ".lock")
+            with lock:
+                tmp = self.path.with_suffix(".tmp")
+                tmp.write_text(json.dumps(self.data))
+                tmp.replace(self.path)
         except Exception:
             pass
 
