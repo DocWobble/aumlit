@@ -52,3 +52,21 @@ def test_obligations_cli():
 def test_proof_ignores_comfy():
     log = ["a", "b"]
     assert printers.proof(log, fmt="comfy") == printers.proof(log, fmt="cli")
+
+
+def test_contact_trace_cli_validation_metrics():
+    hyp = {}
+    val = {"time_ms": 1.0, "vram_mb": 2.0, "dtype_ok": False, "stable": True}
+    out = printers.contact_trace(hyp, validation=val, fmt="cli")
+    assert "1.0ms" in out
+    assert "2.0MB" in out
+    assert "dtype_mismatch" in out
+    assert "stable" in out
+
+
+def test_proof_validation_metrics():
+    log = ["x"]
+    val = {"time_ms": 3.0, "vram_mb": 0.0, "dtype_ok": True, "stable": False}
+    out = printers.proof(log, validation=val)
+    assert "dtype_ok=True" in out
+    assert "stable=False" in out
