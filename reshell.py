@@ -166,7 +166,9 @@ def run_pipeline(
         entry = header_cache[key]
         hypotheses: Dict[str, Any] = dict(entry.get("hypotheses", {}))
         validation = entry.get("validation")
-        proof_log: list[str] = [f"recognized header {key}"]
+        line = f"recognized header {key}"
+        proof_log: list[str] = [line]
+        provenance: Dict[str, str] = {k: line for k in hypotheses}
         print(f"[reshell] recognized header {key}")
     else:
         hypotheses: Dict[str, Any] = dict(meta.hints)
@@ -175,6 +177,7 @@ def run_pipeline(
 
         constraints = ConstraintSet([Equality(DimVar(k), v) for k, v in hypotheses.items()])
         hypotheses = constraints.solve()
+        provenance = {k: "seed" for k in hypotheses}
 
         # Avoid re-trying previously failed probe signatures for this header.
         planner_cls = GreedyPlanner if constraints is not None else Planner
@@ -220,13 +223,18 @@ def run_pipeline(
 
             try:
                 sandbox.try_forward(try_forward, artifact, puppet_inputs, engine=engine_name)
-                hypotheses.update(combo)
+                line = f"candidate {combo} -> ok"
+                for k, v in combo.items():
+                    if hypotheses.get(k) != v:
+                        hypotheses[k] = v
+                        provenance[k] = line
                 constraints.add(*(Equality(DimVar(k), v) for k, v in combo.items()))
-                proof_log.append(f"candidate {combo} -> ok")
+                proof_log.append(line)
                 validation = sandbox.validate_min_run(try_forward, artifact, puppet_inputs)
                 break
             except Exception as e:  # pragma: no cover - error path
                 reason = str(e)
+                line = f"candidate {combo} -> {reason}"
                 updates = parse_reason(reason)
                 # Record the failure signature with a simple error class.
                 if failure_cache:
@@ -248,9 +256,12 @@ def run_pipeline(
                 if updates:
                     constraints.add(*updates)
                     solved = constraints.solve()
-                    hypotheses.update(solved)
+                    for k, v in solved.items():
+                        if hypotheses.get(k) != v:
+                            hypotheses[k] = v
+                            provenance[k] = line
                     planner.update(solved)
-                proof_log.append(f"candidate {combo} -> {reason}")
+                proof_log.append(line)
 
         if cache_dir:
             header_cache[key] = {"hypotheses": hypotheses}
@@ -259,7 +270,7 @@ def run_pipeline(
             _save_header_cache(cache_dir, header_cache)
 
     trace_out = contact_trace(hypotheses, validation, fmt=fmt or "json")
-    oblig_out = obligations(hypotheses, fmt=fmt or "json")
+    oblig_out = obligations(hypotheses, provenance, fmt=fmt or "json")
     proof_out = proof(proof_log, validation, fmt=fmt or "cli")
 
     contact_trace_path = out_dir / "contact_trace.json"

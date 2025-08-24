@@ -8,7 +8,7 @@ strings.  The functions are intentionally tiny and do not attempt to be
 complete – they merely provide placeholders for richer implementations.
 """
 
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Mapping
 
 
 # Mapping from hypothesis keys to obligation templates.  Each template is
@@ -143,20 +143,31 @@ def contact_trace(hyp: Dict[str, Any], validation: Dict[str, Any] | None = None,
     raise ValueError(f"unknown format: {fmt}")
 
 
-def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
+def obligations(
+    hyp: Dict[str, Any],
+    provenance: Mapping[str, str] | None = None,
+    fmt: str = "json",
+) -> Any:
     """Derive component obligations from hypotheses.
 
-    All obligation templates are rendered, substituting known values where
-    available and ``"?"`` otherwise.
+    ``provenance`` maps hypothesis keys to the proof transcript line that
+    resolved them.  When provided the provenance is emitted alongside each
+    obligation in CLI and JSON formats.
     """
 
-
-    entries = [template.format(hyp.get(key, "?")) for key, template in _OBLIGATION_TEMPLATES.items()]
+    entries = []
+    for key, template in _OBLIGATION_TEMPLATES.items():
+        text = template.format(hyp.get(key, "?"))
+        prov = provenance.get(key) if provenance else None
+        entries.append((text, prov))
 
     if fmt == "cli":
-        return "\n".join(entries)
+        lines = [f"{text} ({prov})" if prov else text for text, prov in entries]
+        return "\n".join(lines)
     if fmt == "json":
-        return entries
+        if provenance:
+            return [{"obligation": text, "provenance": prov} for text, prov in entries]
+        return [text for text, _ in entries]
     if fmt == "comfy":
         nodes: List[Dict[str, Any]] = []
         if "TEXT_EMB_d" not in hyp:
