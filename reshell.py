@@ -17,7 +17,7 @@ from filelock import FileLock
 
 from classifier import parse_reason
 from geometry import ConstraintSet, DimVar, Equality
-from planner import Planner, probe_signature
+from planner import Planner, GreedyPlanner, probe_signature
 from failure_cache import FailureCache
 from headers import (
     Meta,
@@ -177,7 +177,12 @@ def run_pipeline(
         hypotheses = constraints.solve()
 
         # Avoid re-trying previously failed probe signatures for this header.
-        planner = Planner(seed=hypotheses, failed_probes=set(known_failures.keys()))
+        planner_cls = GreedyPlanner if constraints is not None else Planner
+        planner = planner_cls(
+            seed=hypotheses,
+            failed_probes=set(known_failures.keys()),
+            **({"constraints": constraints} if planner_cls is GreedyPlanner else {}),
+        )
 
         # Only pass non-cache args to the sandbox
         cache_dir = limits_dict.pop("cache_dir", None)
