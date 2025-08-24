@@ -4,6 +4,7 @@ import yaml
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from classifier import parse_reason
+from geometry import ConstraintSet
 
 
 def test_error_rules():
@@ -13,14 +14,14 @@ def test_error_rules():
     for case in cases:
         msg = case["msg"]
         expected = case["update"]
-        assert parse_reason(msg) == expected
+        assert ConstraintSet(parse_reason(msg)).solve() == expected
 
 
 def test_multiple_hints_collected():
     msg = "COND_DIM: expected 4 LATENT_C: expected 8"
-    assert parse_reason(msg) == {"TEXT_EMB_d": 4, "LATENT_C": 8}
+    assert ConstraintSet(parse_reason(msg)).solve() == {"TEXT_EMB_d": 4, "LATENT_C": 8}
 
 
 def test_surrounding_quotes_removed_but_inner_preserved():
     msg = "'LATENT_C: expected 4 and 'inner' noise'"
-    assert parse_reason(msg) == {"LATENT_C": 4}
+    assert ConstraintSet(parse_reason(msg)).solve() == {"LATENT_C": 4}
