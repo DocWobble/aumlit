@@ -8,10 +8,14 @@ space is preserved for back-off.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from itertools import product
+from itertools import product, count
+from heapq import heappush, heappop
 import hashlib
 import json
-from typing import Any, Dict, Iterator, Mapping, Sequence, Set
+import math
+from typing import Any, Dict, Iterator, Mapping, Sequence, Set, List, Tuple
+
+from geometry import ConstraintSet
 
 DEFAULT_CANDIDATES: Dict[str, Sequence[Any]] = {
     "TEXT_EMB_d": [768, 1024, 1280, 1536, 2048, 4096],
@@ -83,33 +87,41 @@ class Planner:
     )
     order: Sequence[str] = field(default_factory=lambda: ORDER)
     failed_probes: Set[str] = field(default_factory=set)
+    _queue: List[Tuple[float, int, Dict[str, Any]]] = field(init=False, default_factory=list)
+    _counter: Iterator[int] = field(init=False, default_factory=count)
 
     def __post_init__(self) -> None:
         self.candidates = plan_candidates(self.seed, self.defaults)
-        keys = [k for k in self.order if k in self.candidates]
-        self._keys = keys
-        self._iter: Iterator[tuple[Any, ...]] = product(
-            *(self.candidates[k] for k in keys)
-        )
+        self._keys = [k for k in self.order if k in self.candidates]
+        self._build_queue()
+
+    def _build_queue(self) -> None:
+        self._queue = []
+        for values in product(*(self.candidates[k] for k in self._keys)):
+            combo = dict(zip(self._keys, values))
+            sig = probe_signature(combo)
+            if sig in self.failed_probes:
+                continue
+            score = -self.score(combo)
+            heappush(self._queue, (score, next(self._counter), combo))
+
+    def score(self, combo: Mapping[str, Any]) -> float:  # pragma: no cover - default
+        return 0.0
 
     def __iter__(self) -> "Planner":  # pragma: no cover - trivial
         return self
 
     def __next__(self) -> Dict[str, Any]:
-        while True:
-            values = next(self._iter)
-            combo = dict(zip(self._keys, values))
+        while self._queue:
+            _score, _idx, combo = heappop(self._queue)
             sig = probe_signature(combo)
-            if sig not in self.failed_probes:
-                return combo
+            if sig in self.failed_probes:
+                continue
+            return combo
+        raise StopIteration
 
     def update(self, hyp: Mapping[str, Any]) -> None:
-        """Prune candidate lists according to ``hyp`` and reset iteration.
-
-        Any key present in ``hyp`` is fixed to its provided value.  If the
-        value differs from the current candidate space the internal iterator is
-        rebuilt so subsequent ``next`` calls reflect the new hypothesis state.
-        """
+        """Prune candidate lists according to ``hyp`` and rebuild queue."""
 
         changed = False
         for key, val in hyp.items():
@@ -119,9 +131,39 @@ class Planner:
             self.candidates[key] = [val]
             changed = True
         if changed:
-            keys = [k for k in self.order if k in self.candidates]
-            self._keys = keys
-            self._iter = product(*(self.candidates[k] for k in keys))
+            self._keys = [k for k in self.order if k in self.candidates]
+            self._build_queue()
 
 
-__all__ = ["DEFAULT_CANDIDATES", "plan_candidates", "probe_signature", "Planner"]
+@dataclass
+class GreedyPlanner(Planner):
+    """Planner that ranks probes by estimated hypothesis collapse."""
+
+    constraints: ConstraintSet = field(default_factory=ConstraintSet)
+
+    def score(self, combo: Mapping[str, Any]) -> float:
+        solved = self.constraints.solve()
+        total = 1
+        for k in self._keys:
+            total *= 1 if k in solved else len(self.candidates[k])
+        best = 0.0
+        for k in self._keys:
+            if k in solved:
+                continue
+            klen = len(self.candidates[k])
+            if klen <= 1:
+                continue
+            after = total / klen
+            diff = math.log(total) - math.log(after)
+            if diff > best:
+                best = diff
+        return best
+
+
+__all__ = [
+    "DEFAULT_CANDIDATES",
+    "plan_candidates",
+    "probe_signature",
+    "Planner",
+    "GreedyPlanner",
+]
