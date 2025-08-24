@@ -15,10 +15,12 @@ from geometry import ConstraintSet, DimVar, Equality
 DEFAULT_ERROR_PATTERNS: Dict[str, List[str]] = {
     "TEXT_EMB_d": [r"COND_DIM[:\s]+(?:expected\s+)?(\d+)",
                      # PyTorch matmul shape mismatch
-                     r"mat1 and mat2 shapes cannot be multiplied \(\d+x\d+ and \d+x(\d+)\)",],
+                     r"mat1 and mat2 shapes cannot be multiplied \(\d+x\d+ and \d+x(\d+)\)",
+                     r"TEXT_EMB_d[=:\s]+(\d+)",],
     "LATENT_C": [r"LATENT_C[:\s]+(?:expected\s+)?(\d+)",
                   # Conv2d channel mismatch
-                  r"expected input.* to have (\d+) channels"],
+                  r"expected input.* to have (\d+) channels",
+                  r"LATENT_C[=:\s]+(\d+)"],
     "HEAD": [r"HEAD[:\s]+(?:expected\s+)?(epsilon|v|flow)",
               r"prediction mismatch[:\s]+(?:expected\s+)?(epsilon|v|flow)"],
     "LATENT_SCALE": [r"LATENT_SCALE[:\s]+(?:expected\s+)?(\d+)",],
@@ -28,6 +30,7 @@ DEFAULT_ERROR_PATTERNS: Dict[str, List[str]] = {
     "KV_DTYPE": [r"KV(?:_CACHE)?_DTYPE[:=\s]+([A-Za-z0-9_]+)"],
     "VOCAB": [r"VOCAB[=:\s]+(\d+)"],
     "ROPE": [r"ROPE[=:\s]+(\d+)(k)?"],
+    "LAYOUT": [r"LAYOUT[=:\s]+([A-Za-z0-9_\-]+)"],
 }
 
 # Copy defaults so we can extend with YAML-provided patterns.

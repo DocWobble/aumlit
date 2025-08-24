@@ -17,10 +17,20 @@ def _engine_forward() -> str:
     import re
 
     try:
-        xops.memory_efficient_attention(q, k, v)
+        xops.memory_efficient_attention(q, k, v, mem_efficient=True)
     except Exception as e:  # pragma: no cover - layout/type mismatches
-        ints = re.findall(r"\d+", str(e))
+        msg = str(e)
+        ints = re.findall(r"\d+", msg)
+        layout = None
+        m = re.search(r"layout[=:\s]+([A-Za-z0-9_\-]+)", msg)
+        if m:
+            layout = m.group(1)
+        parts = []
         if ints:
-            raise RuntimeError("XFORMERS_FAIL: " + " ".join(ints)) from e
+            parts.extend(ints)
+        if layout:
+            parts.append(f"LAYOUT={layout}")
+        if parts:
+            raise RuntimeError("XFORMERS_FAIL: " + " ".join(parts)) from e
         raise
     return "ok"
