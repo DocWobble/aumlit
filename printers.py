@@ -64,6 +64,10 @@ def contact_trace(hyp: Dict[str, Any], validation: Dict[str, Any] | None = None,
                 metrics.append(f"{validation['time_ms']:.1f}ms")
             if "vram_mb" in validation:
                 metrics.append(f"{validation['vram_mb']:.1f}MB")
+            if "dtype_ok" in validation:
+                metrics.append("dtype" if validation["dtype_ok"] else "dtype_mismatch")
+            if "stable" in validation:
+                metrics.append("stable" if validation["stable"] else "unstable")
             if metrics:
                 trace = f"{trace} ({', '.join(metrics)})"
         return trace
@@ -184,7 +188,16 @@ def proof(log: Iterable[str], validation: Dict[str, Any] | None = None, fmt: str
 
     lines = list(log)
     if validation:
-        lines.append(f"validate {validation}")
+        metrics: List[str] = []
+        if "time_ms" in validation:
+            metrics.append(f"time={validation['time_ms']:.1f}ms")
+        if "vram_mb" in validation:
+            metrics.append(f"vram={validation['vram_mb']:.1f}MB")
+        if "dtype_ok" in validation:
+            metrics.append(f"dtype_ok={validation['dtype_ok']}")
+        if "stable" in validation:
+            metrics.append(f"stable={validation['stable']}")
+        lines.append("validate " + ", ".join(metrics))
     if fmt == "json":
         return lines
     if fmt in {"cli", "comfy"}:

@@ -160,7 +160,7 @@ class Sandbox:
         raise err
 
     def validate_min_run(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Mapping[str, float]:
-        """Run ``fn`` once more to collect timing and VRAM metrics."""
+        """Run ``fn`` twice to collect timing and stability metrics."""
 
         q: Queue = Queue()
 
@@ -183,8 +183,53 @@ class Sandbox:
             except Exception:  # pragma: no cover - optional dependency
                 pass
 
+            def _collect_dtypes(obj: Any) -> set[str]:
+                if hasattr(obj, "dtype"):
+                    return {str(getattr(obj, "dtype"))}
+                if isinstance(obj, dict):
+                    d: set[str] = set()
+                    for v in obj.values():
+                        d.update(_collect_dtypes(v))
+                    return d
+                if isinstance(obj, (list, tuple, set)):
+                    d: set[str] = set()
+                    for v in obj:
+                        d.update(_collect_dtypes(v))
+                    return d
+                if hasattr(obj, "data"):
+                    return _collect_dtypes(getattr(obj, "data"))
+                return {type(obj).__name__}
+
+            def _has_nan_inf(obj: Any) -> bool:
+                import math
+                if isinstance(obj, dict):
+                    return any(_has_nan_inf(v) for v in obj.values())
+                if isinstance(obj, (list, tuple, set)):
+                    return any(_has_nan_inf(v) for v in obj)
+                if hasattr(obj, "data"):
+                    return _has_nan_inf(getattr(obj, "data"))
+                if isinstance(obj, float):
+                    return math.isnan(obj) or math.isinf(obj)
+                return False
+
+            def _same(a: Any, b: Any) -> bool:
+                if type(a) != type(b):
+                    return False
+                if isinstance(a, dict):
+                    if a.keys() != b.keys():
+                        return False
+                    return all(_same(a[k], b[k]) for k in a)
+                if isinstance(a, (list, tuple)):
+                    return len(a) == len(b) and all(_same(x, y) for x, y in zip(a, b))
+                if hasattr(a, "data") and hasattr(b, "data"):
+                    return _same(a.data, b.data)
+                try:
+                    return a == b
+                except Exception:
+                    return False
+
             try:
-                fn(*args, **kwargs)
+                out1 = fn(*args, **kwargs)
                 duration = (time.perf_counter() - start) * 1000.0
                 vram = 0.0
                 try:
@@ -193,7 +238,16 @@ class Sandbox:
                         vram = torch.cuda.max_memory_allocated() / (1024 * 1024)
                 except Exception:  # pragma: no cover - optional dependency
                     pass
-                q.put(("ok", {"time_ms": duration, "vram_mb": vram}))
+                try:
+                    out2 = fn(*args, **kwargs)
+                except Exception:
+                    q.put(("ok", {"time_ms": duration, "vram_mb": vram, "dtype_ok": False, "stable": False}))
+                    return
+                d1 = _collect_dtypes(out1)
+                d2 = _collect_dtypes(out2)
+                dtype_ok = d1 == d2 and len(d1) == 1
+                stable = (not _has_nan_inf(out1)) and (not _has_nan_inf(out2)) and _same(out1, out2)
+                q.put(("ok", {"time_ms": duration, "vram_mb": vram, "dtype_ok": dtype_ok, "stable": stable}))
             except Exception as e:  # pragma: no cover - error path
                 q.put(("err", repr(e)))
 
