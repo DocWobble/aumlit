@@ -16,6 +16,7 @@ from typing import Any, Dict, Mapping, Tuple
 from filelock import FileLock
 
 from classifier import parse_reason
+from geometry import ConstraintSet, DimVar, Equality
 from planner import Planner, probe_signature
 from failure_cache import FailureCache
 from headers import (
@@ -172,6 +173,9 @@ def run_pipeline(
         if guesses:
             hypotheses.update(guesses)
 
+        constraints = ConstraintSet([Equality(DimVar(k), v) for k, v in hypotheses.items()])
+        hypotheses = constraints.solve()
+
         # Avoid re-trying previously failed probe signatures for this header.
         planner = Planner(seed=hypotheses, failed_probes=set(known_failures.keys()))
 
@@ -202,6 +206,7 @@ def run_pipeline(
             try:
                 sandbox.try_forward(try_forward, artifact, puppet_inputs)
                 hypotheses.update(combo)
+                constraints.add(*(Equality(DimVar(k), v) for k, v in combo.items()))
                 proof_log.append(f"candidate {combo} -> ok")
                 validation = sandbox.validate_min_run(try_forward, artifact, puppet_inputs)
                 break
@@ -210,12 +215,14 @@ def run_pipeline(
                 updates = parse_reason(reason)
                 # Record the failure signature with a simple error class.
                 if failure_cache:
-                    err_cls = next(iter(updates), "OTHER") if updates else "OTHER"
+                    err_cls = updates[0].left.name if updates else "OTHER"
                     failure_cache.record(header_id, probe_signature(combo), err_cls)
                 # Feed updates back into hypotheses and planner.
                 if updates:
-                    hypotheses.update(updates)
-                    planner.update(updates)
+                    constraints.add(*updates)
+                    solved = constraints.solve()
+                    hypotheses.update(solved)
+                    planner.update(solved)
                 proof_log.append(f"candidate {combo} -> {reason}")
 
         if cache_dir:

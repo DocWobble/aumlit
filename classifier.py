@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import yaml
+
+from geometry import ConstraintSet, DimVar, Equality
 
 # Map hypothesis keys to regex patterns capturing the relevant value.
 # Patterns are intentionally broad and numeric groups are prioritised.
@@ -36,13 +38,14 @@ except (FileNotFoundError, yaml.YAMLError, OSError):
     pass
 
 
-def parse_reason(msg: str) -> Dict[str, Any]:
-    """Extract all hypothesis updates from ``msg`` using regex rules."""
+def parse_reason(msg: str) -> List[Equality]:
+    """Extract constraints from ``msg`` using regex rules."""
+
     msg = msg.strip()
     m = re.match(r"^(['\"])(.*)\1$", msg)
     if m:
         msg = m.group(2)
-    updates: Dict[str, Any] = {}
+    constraints: List[Equality] = []
     for key, pattern in ERROR_PATTERNS.items():
         for m in re.finditer(pattern, msg, re.IGNORECASE):
             val: Any = m.group(1)
@@ -50,8 +53,16 @@ def parse_reason(msg: str) -> Dict[str, Any]:
                 val = int(val)
                 if key == "ROPE" and m.group(2):
                     val *= 1000
-            updates[key] = val
-    return updates
+            constraints.append(Equality(DimVar(key), val))
+    return constraints
 
 
-__all__ = ["parse_reason", "ERROR_PATTERNS"]
+def constraints_from_error(msg: str) -> ConstraintSet:
+    """Parse ``msg`` into a ``ConstraintSet``."""
+
+    cs = ConstraintSet()
+    cs.add(*parse_reason(msg))
+    return cs
+
+
+__all__ = ["parse_reason", "constraints_from_error", "ERROR_PATTERNS"]
