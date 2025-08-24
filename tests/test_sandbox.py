@@ -5,6 +5,7 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from sandbox import Sandbox, Limits
+import headers
 
 
 def test_sandbox_timeout():
@@ -82,3 +83,25 @@ def test_sandbox_disk_cache(tmp_path):
     box2 = Sandbox(cache_dir=cache_dir)
     assert box2.try_forward(worker, artifact, counter) == 5
     assert counter.read_text() == "x"
+
+
+def test_sandbox_class_key_cache(tmp_path):
+    artifact1 = tmp_path / "d1.bin"
+    artifact1.write_bytes(b"one")
+    artifact2 = tmp_path / "d2.bin"
+    artifact2.write_bytes(b"two")
+    box = Sandbox()
+
+    meta = headers.Meta(tensors=[headers.TensorInfo("w", (1,))], hints={})
+    key = headers.class_key(meta)
+
+    def worker(path: Path) -> int:
+        cnt = path.with_suffix(".cnt")
+        with open(cnt, "a") as fh:
+            fh.write("x")
+        return 7
+
+    assert box.try_forward(worker, artifact1, class_key=key) == 7
+    assert artifact1.with_suffix(".cnt").read_text() == "x"
+    assert box.try_forward(worker, artifact2, class_key=key) == 7
+    assert not artifact2.with_suffix(".cnt").exists()

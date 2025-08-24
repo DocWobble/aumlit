@@ -4,6 +4,7 @@ import sys
 
 import torch
 import pytest
+import threading
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import reshell
@@ -107,4 +108,49 @@ def test_run_pipeline_gguf_fixture(tmp_path):
     proof = proof_path.read_text()
     assert "candidate" in proof
     assert oblig_path.read_text()
+
+
+def test_run_pipeline_header_cache(monkeypatch, tmp_path):
+    artifact = tmp_path / "lin256.pt"
+    _save_linear(256, artifact)
+    cache_dir = tmp_path / "cache"
+
+    # first run populates cache
+    run_pipeline(artifact, tmp_path / "out1", limits={"cache_dir": cache_dir})
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("try_forward should not be called on cache hit")
+
+    monkeypatch.setattr(reshell, "try_forward", fail)
+
+    # second run with same headers should hit cache and skip probes
+    artifact2 = tmp_path / "lin256_copy.pt"
+    _save_linear(256, artifact2)
+    ct_path, oblig_path, proof_path = run_pipeline(
+        artifact2, tmp_path / "out2", limits={"cache_dir": cache_dir}
+    )
+
+    trace = json.loads(ct_path.read_text())
+    assert trace["hypotheses"]["TEXT_EMB_d"] == 256
+    assert "recognized header" in proof_path.read_text()
+    assert oblig_path.read_text()
+
+
+def test_header_cache_concurrent_writes(tmp_path):
+    cache_dir = tmp_path / "cache"
+
+    def worker(idx: int) -> None:
+        cache = reshell._load_header_cache(cache_dir)
+        cache[str(idx)] = idx
+        reshell._save_header_cache(cache_dir, cache)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # ensure resulting cache file is valid JSON
+    data = reshell._load_header_cache(cache_dir)
+    assert isinstance(data, dict)
 

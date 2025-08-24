@@ -25,6 +25,12 @@ aumlit reshell path/to/model.safetensors --out out_dir
 
 The command prints placeholder locations for `contact_trace.json`, `obligations.json`, and `proof.txt`.
 
+## Concurrency
+
+Cache files such as `failure_cache.json` and `header_cache.json` are written
+under a cross-platform file lock. This prevents concurrent `reshell` runs from
+corrupting the JSON when multiple processes update the same cache directory.
+
 ## Building standalone binaries
 
 Standalone binaries can be produced with [PyInstaller](https://pyinstaller.org/).

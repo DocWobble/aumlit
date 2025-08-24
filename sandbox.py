@@ -83,7 +83,13 @@ class Sandbox:
             q.put(("err", repr(e)))
 
     # Public API ----------------------------------------------------
-    def try_forward(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    def try_forward(
+        self,
+        fn: Callable[..., Any],
+        *args: Any,
+        class_key: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
         """Run ``fn`` under resource limits.
 
         Parameters
@@ -94,20 +100,22 @@ class Sandbox:
             Passed directly to ``fn``.
         """
         key: tuple[str, str] | None = None
-        if args and isinstance(args[0], (str, os.PathLike, Path)):
+        base_key: str | None = class_key
+        if base_key is None and args and isinstance(args[0], (str, os.PathLike, Path)):
             try:
                 artifact_path = Path(args[0])
                 hasher = hashlib.sha256()
                 with artifact_path.open("rb") as fh:
                     for chunk in iter(lambda: fh.read(1024 * 1024), b""):
                         hasher.update(chunk)
-                artifact_sha256 = hasher.hexdigest()
-                sig_src = repr((args[1:], sorted(kwargs.items())))
-                probe_signature = hashlib.sha256(sig_src.encode()).hexdigest()
-                key = (artifact_sha256, probe_signature)
+                base_key = hasher.hexdigest()
             except Exception:
-                key = None
-            if key and key in self.cache:
+                base_key = None
+        if base_key is not None:
+            sig_src = repr((args[1:], sorted(kwargs.items())))
+            probe_signature = hashlib.sha256(sig_src.encode()).hexdigest()
+            key = (base_key, probe_signature)
+            if key in self.cache:
                 status, payload = self.cache[key]
                 if status == "ok":
                     return payload
