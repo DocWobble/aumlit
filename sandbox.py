@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import resource
+import time
 
 
 @dataclass
@@ -37,7 +38,8 @@ class Sandbox:
 
     def __init__(self, limits: Limits | None = None, cache_dir: str | Path | None = None) -> None:
         self.limits = limits or Limits()
-        self.cache: dict[tuple[str, str], tuple[str, Any]] = {}
+        # cache maps (artifact_hash, probe_hash) -> (status, payload, time_ms, engine, op_kind)
+        self.cache: dict[tuple[str, str], tuple[str, Any, float, str, Any]] = {}
         self.cache_file: Path | None = None
         if cache_dir is not None:
             self.cache_file = Path(cache_dir) / "sandbox_cache.json"
@@ -47,7 +49,12 @@ class Sandbox:
                     data = json.loads(self.cache_file.read_text())
                     for k, v in data.items():
                         a, b = k.split(":", 1)
-                        self.cache[(a, b)] = tuple(v)  # type: ignore[assignment]
+                        if isinstance(v, list):
+                            # Support legacy cache entries with fewer fields
+                            while len(v) < 5:
+                                v.append(None)
+                            status, payload, t_ms, eng, opk = v
+                            self.cache[(a, b)] = (status, payload, t_ms or 0.0, eng or "", opk)
             except Exception:  # pragma: no cover - corrupted cache
                 pass
 
@@ -78,9 +85,10 @@ class Sandbox:
             mb = self.limits.vram // (1024 * 1024)
             os.environ["PYTORCH_CUDA_ALLOC_CONF"] = f"max_split_size_mb:{mb}"
         try:
-            q.put(("ok", fn(*args, **kwargs)))
+            q.put(("ok", fn(*args, **kwargs), None))
         except Exception as e:  # pragma: no cover - error path
-            q.put(("err", repr(e)))
+            op_kind = getattr(e, "op_kind", None)
+            q.put(("err", repr(e), op_kind))
 
     # Public API ----------------------------------------------------
     def try_forward(
@@ -88,6 +96,7 @@ class Sandbox:
         fn: Callable[..., Any],
         *args: Any,
         class_key: str | None = None,
+        engine: str | None = None,
         **kwargs: Any,
     ) -> Any:
         """Run ``fn`` under resource limits.
@@ -101,6 +110,8 @@ class Sandbox:
         """
         key: tuple[str, str] | None = None
         base_key: str | None = class_key
+        engine_id = engine or getattr(fn, "__name__", "")
+        start = time.perf_counter()
         if base_key is None and args and isinstance(args[0], (str, os.PathLike, Path)):
             try:
                 artifact_path = Path(args[0])
@@ -116,28 +127,37 @@ class Sandbox:
             probe_signature = hashlib.sha256(sig_src.encode()).hexdigest()
             key = (base_key, probe_signature)
             if key in self.cache:
-                status, payload = self.cache[key]
+                status, payload, t_ms, eng, opk = self.cache[key]
                 if status == "ok":
-                    return payload
-                raise RuntimeError(payload)
+                    return payload, t_ms, eng
+                err = RuntimeError(payload)
+                err.engine = eng
+                err.time_ms = t_ms
+                err.op_kind = opk
+                raise err
 
         q: Queue = Queue()
         p = Process(target=self._worker, args=(fn, q, *args), kwargs=kwargs)
         p.start()
         p.join(self.limits.timeout)
+        duration = (time.perf_counter() - start) * 1000.0
         if p.is_alive():
             p.terminate()
             p.join()
             raise TimeoutError("sandbox timed out")
         if q.empty():
             raise RuntimeError("sandbox produced no result")
-        status, payload = q.get()
+        status, payload, op_kind = q.get()
         if key is not None:
-            self.cache[key] = (status, payload)
+            self.cache[key] = (status, payload, duration, engine_id, op_kind)
             self._save_cache()
         if status == "ok":
-            return payload
-        raise RuntimeError(payload)
+            return payload, duration, engine_id
+        err = RuntimeError(payload)
+        err.engine = engine_id
+        err.time_ms = duration
+        err.op_kind = op_kind
+        raise err
 
     def validate_min_run(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Mapping[str, float]:
         """Run ``fn`` once more to collect timing and VRAM metrics."""

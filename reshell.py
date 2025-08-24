@@ -191,6 +191,16 @@ def run_pipeline(
         proof_log: list[str] = []
         validation: Dict[str, Any] | None = None
 
+        def _engine_id(art: Path) -> str:
+            suf = art.suffix.lower()
+            if suf == ".onnx":
+                return "onnx"
+            if suf == ".gguf":
+                return "llama"
+            return "torch"
+
+        engine_name = _engine_id(artifact)
+
         for combo in planner:
             puppet_inputs: Dict[str, Any] = {}
             if "TEXT_EMB_d" in combo:
@@ -209,7 +219,7 @@ def run_pipeline(
                 puppet_inputs["kv_dtype"] = combo["KV_DTYPE"]
 
             try:
-                sandbox.try_forward(try_forward, artifact, puppet_inputs)
+                sandbox.try_forward(try_forward, artifact, puppet_inputs, engine=engine_name)
                 hypotheses.update(combo)
                 constraints.add(*(Equality(DimVar(k), v) for k, v in combo.items()))
                 proof_log.append(f"candidate {combo} -> ok")
@@ -221,7 +231,19 @@ def run_pipeline(
                 # Record the failure signature with a simple error class.
                 if failure_cache:
                     err_cls = updates[0].left.name if updates else "OTHER"
-                    failure_cache.record(header_id, probe_signature(combo), err_cls)
+                    ints_map = {u.left.name: u.right for u in updates}
+                    engine = getattr(e, "engine", engine_name)
+                    op_kind = getattr(e, "op_kind", None)
+                    time_ms = getattr(e, "time_ms", None)
+                    failure_cache.record(
+                        header_id,
+                        probe_signature(combo),
+                        err_cls,
+                        ints=ints_map,
+                        engine=engine,
+                        op_kind=op_kind,
+                        time_ms=time_ms,
+                    )
                 # Feed updates back into hypotheses and planner.
                 if updates:
                     constraints.add(*updates)
