@@ -49,6 +49,21 @@ def test_obligations_cli():
     assert oblig_cli == "\n".join(oblig_json)
 
 
+def test_obligations_provenance():
+    hyp = {"TEXT_EMB_d": 2048, "LATENT_C": 4}
+    prov = {
+        "TEXT_EMB_d": "candidate {'TEXT_EMB_d': 2048} -> ok",
+        "LATENT_C": "candidate {'LATENT_C': 4} -> ok",
+    }
+    oblig_json = printers.obligations(hyp, provenance=prov, fmt="json")
+    assert {
+        "obligation": "TEXT_ENCODER(dim=2048)",
+        "provenance": prov["TEXT_EMB_d"],
+    } in oblig_json
+    oblig_cli = printers.obligations(hyp, provenance=prov, fmt="cli")
+    assert prov["TEXT_EMB_d"] in oblig_cli
+
+
 def test_proof_ignores_comfy():
     log = ["a", "b"]
     assert printers.proof(log, fmt="comfy") == printers.proof(log, fmt="cli")
