@@ -10,10 +10,19 @@ from failure_cache import FailureCache
 def test_failure_cache_roundtrip(tmp_path):
     cache_file = tmp_path / "f.json"
     fc = FailureCache(cache_file)
-    fc.record("h", "sig", "ERR")
-    assert fc.get("h") == {"sig": "ERR"}
+    fc.record("h", "sig", "ERR", ints={"a": 1}, engine="torch", op_kind="mm", time_ms=1.2)
+    expected = {
+        "sig": {
+            "error_cls": "ERR",
+            "ints": {"a": 1},
+            "engine": "torch",
+            "op_kind": "mm",
+            "time_ms": 1.2,
+        }
+    }
+    assert fc.get("h") == expected
     fc2 = FailureCache(cache_file)
-    assert fc2.get("h") == {"sig": "ERR"}
+    assert fc2.get("h") == expected
     fc.clear("h")
     assert fc.get("h") == {}
 
@@ -21,13 +30,29 @@ def test_failure_cache_roundtrip(tmp_path):
 def test_failure_cache_global_ops(tmp_path):
     cache_file = tmp_path / "f.json"
     fc = FailureCache(cache_file)
-    fc.record("h1", "sig1", "ERR1")
-    fc.record("h2", "sig2", "ERR2")
+    fc.record("h1", "sig1", "ERR1", engine="e1")
+    fc.record("h2", "sig2", "ERR2", engine="e2")
 
     # inspect-all returns the entire dataset
     assert fc.inspect() == {
-        "h1": {"sig1": "ERR1"},
-        "h2": {"sig2": "ERR2"},
+        "h1": {
+            "sig1": {
+                "error_cls": "ERR1",
+                "ints": {},
+                "engine": "e1",
+                "op_kind": None,
+                "time_ms": None,
+            }
+        },
+        "h2": {
+            "sig2": {
+                "error_cls": "ERR2",
+                "ints": {},
+                "engine": "e2",
+                "op_kind": None,
+                "time_ms": None,
+            }
+        },
     }
 
     # clear-all removes every entry
