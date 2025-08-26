@@ -1,4 +1,78 @@
-# Operating model
+## UNIVERSAL GUIDANCE
+
+## Prototype-Driven Development Compass
+
+Codex must use this file as its constant reference for how to define and complete tasks.
+Every task must produce forward progress by adding a new capability that is visible in
+the prototype and mirrored in the main project.
+
+---
+
+### Core Rules
+
+1. **Every task adds a capability.**  
+   - Always create or extend a callable in the core project (function or class).  
+   - Add a corresponding probe in `prototype.py` that calls this callable.  
+   - Prototype never invents standalone logic; it always mirrors what exists in core code.
+
+2. **Green lights prove real work.**  
+   - A probe is complete only if it performs an observable action: writes a file, makes
+     an HTTP call, runs a CUDA op, or logs structured data.  
+   - Hardcoded success messages are not valid. Success must come from actual IO or compute.
+
+3. **Prototype is the changelog.**  
+   - Each probe prints `[OK] name(): description` when it succeeds.  
+   - The description is one line explaining what capability was added and why it matters.  
+   - Append structured metadata for each probe to `_artifacts/proto.json`.
+
+4. **Stable facades, flexible internals.**  
+   - Always expose a thin public facade in the core project for the prototype to call.  
+   - Internals may change, but the facade and its prototype probe remain stable.
+
+5. **Bounded, observable probes.**  
+   - Each probe must run quickly (a few seconds).  
+   - Each probe must emit an artifact in `_artifacts/` (file, log, JSON, response).  
+   - All probes must run offline or against localhost only. No external network.  
+   - If unsupported in the environment, print `[SKIP]` with a clear reason.
+
+6. **Behavioral invariants.**  
+   - Probes check properties of outputs, not exact strings.  
+   - Examples: file is nonempty, audio has correct sample rate, HTTP returns status 200.  
+   - Never design brittle checks that break on valid variations.
+
+7. **No regressions.**  
+   - Once a green light exists, it must remain.  
+   - If internals change, update the prototype probe so the light stays green.  
+   - Never remove a light without adding an equivalent or stronger one.
+
+8. **Always human-readable.**  
+   - Every green light must include a one-line rationale.  
+   - This text is the running release note and project log.
+
+9. **Shadow comparisons for optimizations.**  
+   - When adding an accelerated or alternative path, run both baseline and new path.  
+   - Log both results and print the comparison in the prototype output.  
+   - Example: `[OK] accel_fp4(): baseline=120ms new=85ms speedup=1.4x`.
+
+10. **Definition of Done.**  
+    - A task is complete only if `prototype.py` produces one more `[OK]` line than before.  
+    - That `[OK]` must come from a real callable in the core project and a working probe
+      in the prototype.  
+    - If no new `[OK]` appears, the task is not complete.
+
+---
+
+### Summary
+
+- Prototype drives progress: every capability is mirrored in both core and prototype.  
+- Success is proven by observable IO, not print statements.  
+- Each probe doubles as a changelog entry and performance log.  
+- Codex cannot progress by editing docs, dependencies, or tests alone; only a new green light counts.  
+- Over time, the prototype becomes a running ignition checklist of everything the project can do.
+
+
+
+# OPERATING MODEL: AUMLIT
 
 **Goal:** Given an unknown model artifact (`.safetensors`, `.gguf`, `.onnx`), emit:
 
