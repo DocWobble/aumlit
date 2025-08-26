@@ -12,6 +12,11 @@
 9. **CLI ergonomics** – richer flags (`--fmt`, `--guess`, presets `--fast`/`--deep`) and proof limits.
 10. **ComfyUI bridge** – export minimal graphs with TODO nodes, shape annotations, and re-prove button inside Comfy.
 
+## Updating the error corpus
+- Run probes with `AUM_CLASSIFIER_DEBUG=1` to append unmatched errors to `rules/unmatched_errors.log`.
+- Expand `rules/error_rules.yaml` and `tests/data/classifier_errors.json` with representative messages and expected updates.
+- Run `pytest tests/test_classifier.py` to ensure new patterns are covered.
+
 ## Failure Modes to Pin Down Early
 - Silent success with wrong semantics.
 - Error phrasing drift.

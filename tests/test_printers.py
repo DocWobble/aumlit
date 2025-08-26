@@ -49,6 +49,39 @@ def test_obligations_cli():
     assert oblig_cli == "\n".join(oblig_json)
 
 
+def test_obligations_provenance():
+    hyp = {"TEXT_EMB_d": 2048, "LATENT_C": 4}
+    prov = {
+        "TEXT_EMB_d": "candidate {'TEXT_EMB_d': 2048} -> ok",
+        "LATENT_C": "candidate {'LATENT_C': 4} -> ok",
+    }
+    oblig_json = printers.obligations(hyp, provenance=prov, fmt="json")
+    assert {
+        "obligation": "TEXT_ENCODER(dim=2048)",
+        "provenance": prov["TEXT_EMB_d"],
+    } in oblig_json
+    oblig_cli = printers.obligations(hyp, provenance=prov, fmt="cli")
+    assert prov["TEXT_EMB_d"] in oblig_cli
+
+
 def test_proof_ignores_comfy():
     log = ["a", "b"]
     assert printers.proof(log, fmt="comfy") == printers.proof(log, fmt="cli")
+
+
+def test_contact_trace_cli_validation_metrics():
+    hyp = {}
+    val = {"time_ms": 1.0, "vram_mb": 2.0, "dtype_ok": False, "stable": True}
+    out = printers.contact_trace(hyp, validation=val, fmt="cli")
+    assert "1.0ms" in out
+    assert "2.0MB" in out
+    assert "dtype_mismatch" in out
+    assert "stable" in out
+
+
+def test_proof_validation_metrics():
+    log = ["x"]
+    val = {"time_ms": 3.0, "vram_mb": 0.0, "dtype_ok": True, "stable": False}
+    out = printers.proof(log, validation=val)
+    assert "dtype_ok=True" in out
+    assert "stable=False" in out

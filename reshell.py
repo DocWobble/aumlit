@@ -16,7 +16,8 @@ from typing import Any, Dict, Mapping, Tuple
 from filelock import FileLock
 
 from classifier import parse_reason
-from planner import Planner, probe_signature
+from geometry import ConstraintSet, DimVar, Equality
+from planner import Planner, GreedyPlanner, probe_signature
 from failure_cache import FailureCache
 from headers import (
     Meta,
@@ -165,15 +166,26 @@ def run_pipeline(
         entry = header_cache[key]
         hypotheses: Dict[str, Any] = dict(entry.get("hypotheses", {}))
         validation = entry.get("validation")
-        proof_log: list[str] = [f"recognized header {key}"]
+        line = f"recognized header {key}"
+        proof_log: list[str] = [line]
+        provenance: Dict[str, str] = {k: line for k in hypotheses}
         print(f"[reshell] recognized header {key}")
     else:
         hypotheses: Dict[str, Any] = dict(meta.hints)
         if guesses:
             hypotheses.update(guesses)
 
+        constraints = ConstraintSet([Equality(DimVar(k), v) for k, v in hypotheses.items()])
+        hypotheses = constraints.solve()
+        provenance = {k: "seed" for k in hypotheses}
+
         # Avoid re-trying previously failed probe signatures for this header.
-        planner = Planner(seed=hypotheses, failed_probes=set(known_failures.keys()))
+        planner_cls = GreedyPlanner if constraints is not None else Planner
+        planner = planner_cls(
+            seed=hypotheses,
+            failed_probes=set(known_failures.keys()),
+            **({"constraints": constraints} if planner_cls is GreedyPlanner else {}),
+        )
 
         # Only pass non-cache args to the sandbox
         cache_dir = limits_dict.pop("cache_dir", None)
@@ -181,6 +193,16 @@ def run_pipeline(
 
         proof_log: list[str] = []
         validation: Dict[str, Any] | None = None
+
+        def _engine_id(art: Path) -> str:
+            suf = art.suffix.lower()
+            if suf == ".onnx":
+                return "onnx"
+            if suf == ".gguf":
+                return "llama"
+            return "torch"
+
+        engine_name = _engine_id(artifact)
 
         for combo in planner:
             puppet_inputs: Dict[str, Any] = {}
@@ -200,23 +222,46 @@ def run_pipeline(
                 puppet_inputs["kv_dtype"] = combo["KV_DTYPE"]
 
             try:
-                sandbox.try_forward(try_forward, artifact, puppet_inputs)
-                hypotheses.update(combo)
-                proof_log.append(f"candidate {combo} -> ok")
+                sandbox.try_forward(try_forward, artifact, puppet_inputs, engine=engine_name)
+                line = f"candidate {combo} -> ok"
+                for k, v in combo.items():
+                    if hypotheses.get(k) != v:
+                        hypotheses[k] = v
+                        provenance[k] = line
+                constraints.add(*(Equality(DimVar(k), v) for k, v in combo.items()))
+                proof_log.append(line)
                 validation = sandbox.validate_min_run(try_forward, artifact, puppet_inputs)
                 break
             except Exception as e:  # pragma: no cover - error path
                 reason = str(e)
+                line = f"candidate {combo} -> {reason}"
                 updates = parse_reason(reason)
                 # Record the failure signature with a simple error class.
                 if failure_cache:
-                    err_cls = next(iter(updates), "OTHER") if updates else "OTHER"
-                    failure_cache.record(header_id, probe_signature(combo), err_cls)
+                    err_cls = updates[0].left.name if updates else "OTHER"
+                    ints_map = {u.left.name: u.right for u in updates}
+                    engine = getattr(e, "engine", engine_name)
+                    op_kind = getattr(e, "op_kind", None)
+                    time_ms = getattr(e, "time_ms", None)
+                    failure_cache.record(
+                        header_id,
+                        probe_signature(combo),
+                        err_cls,
+                        ints=ints_map,
+                        engine=engine,
+                        op_kind=op_kind,
+                        time_ms=time_ms,
+                    )
                 # Feed updates back into hypotheses and planner.
                 if updates:
-                    hypotheses.update(updates)
-                    planner.update(updates)
-                proof_log.append(f"candidate {combo} -> {reason}")
+                    constraints.add(*updates)
+                    solved = constraints.solve()
+                    for k, v in solved.items():
+                        if hypotheses.get(k) != v:
+                            hypotheses[k] = v
+                            provenance[k] = line
+                    planner.update(solved)
+                proof_log.append(line)
 
         if cache_dir:
             header_cache[key] = {"hypotheses": hypotheses}
@@ -225,7 +270,7 @@ def run_pipeline(
             _save_header_cache(cache_dir, header_cache)
 
     trace_out = contact_trace(hypotheses, validation, fmt=fmt or "json")
-    oblig_out = obligations(hypotheses, fmt=fmt or "json")
+    oblig_out = obligations(hypotheses, provenance, fmt=fmt or "json")
     proof_out = proof(proof_log, validation, fmt=fmt or "cli")
 
     contact_trace_path = out_dir / "contact_trace.json"

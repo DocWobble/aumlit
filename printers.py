@@ -8,7 +8,7 @@ strings.  The functions are intentionally tiny and do not attempt to be
 complete – they merely provide placeholders for richer implementations.
 """
 
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Mapping
 
 
 # Mapping from hypothesis keys to obligation templates.  Each template is
@@ -64,6 +64,10 @@ def contact_trace(hyp: Dict[str, Any], validation: Dict[str, Any] | None = None,
                 metrics.append(f"{validation['time_ms']:.1f}ms")
             if "vram_mb" in validation:
                 metrics.append(f"{validation['vram_mb']:.1f}MB")
+            if "dtype_ok" in validation:
+                metrics.append("dtype" if validation["dtype_ok"] else "dtype_mismatch")
+            if "stable" in validation:
+                metrics.append("stable" if validation["stable"] else "unstable")
             if metrics:
                 trace = f"{trace} ({', '.join(metrics)})"
         return trace
@@ -139,20 +143,31 @@ def contact_trace(hyp: Dict[str, Any], validation: Dict[str, Any] | None = None,
     raise ValueError(f"unknown format: {fmt}")
 
 
-def obligations(hyp: Dict[str, Any], fmt: str = "json") -> Any:
+def obligations(
+    hyp: Dict[str, Any],
+    provenance: Mapping[str, str] | None = None,
+    fmt: str = "json",
+) -> Any:
     """Derive component obligations from hypotheses.
 
-    All obligation templates are rendered, substituting known values where
-    available and ``"?"`` otherwise.
+    ``provenance`` maps hypothesis keys to the proof transcript line that
+    resolved them.  When provided the provenance is emitted alongside each
+    obligation in CLI and JSON formats.
     """
 
-
-    entries = [template.format(hyp.get(key, "?")) for key, template in _OBLIGATION_TEMPLATES.items()]
+    entries = []
+    for key, template in _OBLIGATION_TEMPLATES.items():
+        text = template.format(hyp.get(key, "?"))
+        prov = provenance.get(key) if provenance else None
+        entries.append((text, prov))
 
     if fmt == "cli":
-        return "\n".join(entries)
+        lines = [f"{text} ({prov})" if prov else text for text, prov in entries]
+        return "\n".join(lines)
     if fmt == "json":
-        return entries
+        if provenance:
+            return [{"obligation": text, "provenance": prov} for text, prov in entries]
+        return [text for text, _ in entries]
     if fmt == "comfy":
         nodes: List[Dict[str, Any]] = []
         if "TEXT_EMB_d" not in hyp:
@@ -184,7 +199,16 @@ def proof(log: Iterable[str], validation: Dict[str, Any] | None = None, fmt: str
 
     lines = list(log)
     if validation:
-        lines.append(f"validate {validation}")
+        metrics: List[str] = []
+        if "time_ms" in validation:
+            metrics.append(f"time={validation['time_ms']:.1f}ms")
+        if "vram_mb" in validation:
+            metrics.append(f"vram={validation['vram_mb']:.1f}MB")
+        if "dtype_ok" in validation:
+            metrics.append(f"dtype_ok={validation['dtype_ok']}")
+        if "stable" in validation:
+            metrics.append(f"stable={validation['stable']}")
+        lines.append("validate " + ", ".join(metrics))
     if fmt == "json":
         return lines
     if fmt in {"cli", "comfy"}:

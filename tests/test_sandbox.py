@@ -40,9 +40,14 @@ def test_sandbox_cache_success(tmp_path):
             fh.write("x")
         return 10
 
-    assert box.try_forward(worker, artifact, counter) == 10
+    res, t_ms, eng = box.try_forward(worker, artifact, counter)
+    assert res == 10
+    assert eng == "worker"
+    assert t_ms >= 0
     assert counter.read_text() == "x"
-    assert box.try_forward(worker, artifact, counter) == 10
+    res2, _, eng2 = box.try_forward(worker, artifact, counter)
+    assert res2 == 10
+    assert eng2 == "worker"
     assert counter.read_text() == "x"
 
 
@@ -77,11 +82,11 @@ def test_sandbox_disk_cache(tmp_path):
         return 5
 
     box = Sandbox(cache_dir=cache_dir)
-    assert box.try_forward(worker, artifact, counter) == 5
+    assert box.try_forward(worker, artifact, counter)[0] == 5
     assert counter.read_text() == "x"
 
     box2 = Sandbox(cache_dir=cache_dir)
-    assert box2.try_forward(worker, artifact, counter) == 5
+    assert box2.try_forward(worker, artifact, counter)[0] == 5
     assert counter.read_text() == "x"
 
 
@@ -101,7 +106,64 @@ def test_sandbox_class_key_cache(tmp_path):
             fh.write("x")
         return 7
 
-    assert box.try_forward(worker, artifact1, class_key=key) == 7
+    assert box.try_forward(worker, artifact1, class_key=key)[0] == 7
     assert artifact1.with_suffix(".cnt").read_text() == "x"
-    assert box.try_forward(worker, artifact2, class_key=key) == 7
+    assert box.try_forward(worker, artifact2, class_key=key)[0] == 7
     assert not artifact2.with_suffix(".cnt").exists()
+
+
+def test_validate_min_run_detects_nan():
+    box = Sandbox()
+
+    def bad():
+        return float("nan")
+
+    metrics = box.validate_min_run(bad)
+    assert metrics["stable"] is False
+    assert metrics["dtype_ok"] is True
+
+
+class _DTypeFlip:
+    def __init__(self) -> None:
+        self.first = True
+
+    def __call__(self):
+        if self.first:
+            self.first = False
+            return FakeTensor(1.0, "f32")
+        return FakeTensor(1.0, "f16")
+
+
+class FakeTensor:
+    def __init__(self, data, dtype):
+        self.data = data
+        self.dtype = dtype
+
+    def __eq__(self, other):  # type: ignore[override]
+        if isinstance(other, FakeTensor):
+            return self.data == other.data
+        return NotImplemented
+
+
+def test_validate_min_run_dtype_mismatch():
+    box = Sandbox()
+    fn = _DTypeFlip()
+    metrics = box.validate_min_run(fn)
+    assert metrics["dtype_ok"] is False
+    assert metrics["stable"] is True
+
+
+def test_validate_min_run_unstable():
+    box = Sandbox()
+
+    class Counter:
+        def __init__(self) -> None:
+            self.val = 0
+
+        def __call__(self) -> int:
+            self.val += 1
+            return self.val
+
+    fn = Counter()
+    metrics = box.validate_min_run(fn)
+    assert metrics["stable"] is False

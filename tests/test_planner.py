@@ -2,7 +2,8 @@ from pathlib import Path
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from planner import Planner, probe_signature
+from planner import Planner, GreedyPlanner, probe_signature
+from geometry import ConstraintSet, DimVar, Equality
 
 
 def test_planner_update_prunes_and_resets():
@@ -51,3 +52,19 @@ def test_planner_skips_failed_probes():
     p = Planner(seed={}, defaults=defaults, order=["A", "B"], failed_probes={sig})
     combo = next(p)
     assert combo == {"A": 2, "B": 3}
+
+
+def test_greedy_planner_reorders_after_constraints():
+    defaults = {"A": [1, 2], "B": [3, 4]}
+    cs = ConstraintSet()
+    gp = GreedyPlanner(constraints=cs, seed={}, defaults=defaults, order=["A", "B"])
+    first = next(gp)
+    second_before = next(gp)
+    gp.failed_probes.add(probe_signature(first))
+    cs.add(Equality(DimVar("B"), first["B"]))
+    solved = cs.solve()
+    gp.update(solved)
+    second_after = next(gp)
+    assert second_after["B"] == first["B"]
+    assert second_after["A"] != first["A"]
+    assert second_after != second_before

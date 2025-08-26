@@ -1,0 +1,368 @@
+[
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x511 and 2x512)",
+    "update": {
+      "TEXT_EMB_d": 512
+    }
+  },
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x767 and 2x768)",
+    "update": {
+      "TEXT_EMB_d": 768
+    }
+  },
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x1023 and 2x1024)",
+    "update": {
+      "TEXT_EMB_d": 1024
+    }
+  },
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x1279 and 2x1280)",
+    "update": {
+      "TEXT_EMB_d": 1280
+    }
+  },
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x1535 and 2x1536)",
+    "update": {
+      "TEXT_EMB_d": 1536
+    }
+  },
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x2047 and 2x2048)",
+    "update": {
+      "TEXT_EMB_d": 2048
+    }
+  },
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x4095 and 2x4096)",
+    "update": {
+      "TEXT_EMB_d": 4096
+    }
+  },
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x8191 and 2x8192)",
+    "update": {
+      "TEXT_EMB_d": 8192
+    }
+  },
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x63 and 2x64)",
+    "update": {
+      "TEXT_EMB_d": 64
+    }
+  },
+  {
+    "msg": "RuntimeError: mat1 and mat2 shapes cannot be multiplied (2x31 and 2x32)",
+    "update": {
+      "TEXT_EMB_d": 32
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 1, 3, 3], expected input[1, 2, 64, 64] to have 1 channels, but got 2 channels instead",
+    "update": {
+      "LATENT_C": 1
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 2, 3, 3], expected input[1, 4, 64, 64] to have 2 channels, but got 4 channels instead",
+    "update": {
+      "LATENT_C": 2
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 3, 3, 3], expected input[1, 6, 64, 64] to have 3 channels, but got 6 channels instead",
+    "update": {
+      "LATENT_C": 3
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 4, 3, 3], expected input[1, 8, 64, 64] to have 4 channels, but got 8 channels instead",
+    "update": {
+      "LATENT_C": 4
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 5, 3, 3], expected input[1, 10, 64, 64] to have 5 channels, but got 10 channels instead",
+    "update": {
+      "LATENT_C": 5
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 6, 3, 3], expected input[1, 12, 64, 64] to have 6 channels, but got 12 channels instead",
+    "update": {
+      "LATENT_C": 6
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 7, 3, 3], expected input[1, 14, 64, 64] to have 7 channels, but got 14 channels instead",
+    "update": {
+      "LATENT_C": 7
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 8, 3, 3], expected input[1, 16, 64, 64] to have 8 channels, but got 16 channels instead",
+    "update": {
+      "LATENT_C": 8
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 16, 3, 3], expected input[1, 32, 64, 64] to have 16 channels, but got 32 channels instead",
+    "update": {
+      "LATENT_C": 16
+    }
+  },
+  {
+    "msg": "RuntimeError: Given groups=1, weight of size [64, 32, 3, 3], expected input[1, 64, 64, 64] to have 32 channels, but got 64 channels instead",
+    "update": {
+      "LATENT_C": 32
+    }
+  },
+  {
+    "msg": "HEAD: expected epsilon",
+    "update": {
+      "HEAD": "epsilon"
+    }
+  },
+  {
+    "msg": "HEAD expected epsilon",
+    "update": {
+      "HEAD": "epsilon"
+    }
+  },
+  {
+    "msg": "prediction mismatch: expected head epsilon",
+    "update": {
+      "HEAD": "epsilon"
+    }
+  },
+  {
+    "msg": "HEAD: expected v",
+    "update": {
+      "HEAD": "v"
+    }
+  },
+  {
+    "msg": "HEAD expected v",
+    "update": {
+      "HEAD": "v"
+    }
+  },
+  {
+    "msg": "prediction mismatch: expected head v",
+    "update": {
+      "HEAD": "v"
+    }
+  },
+  {
+    "msg": "HEAD: expected flow",
+    "update": {
+      "HEAD": "flow"
+    }
+  },
+  {
+    "msg": "HEAD expected flow",
+    "update": {
+      "HEAD": "flow"
+    }
+  },
+  {
+    "msg": "prediction mismatch: expected head flow",
+    "update": {
+      "HEAD": "flow"
+    }
+  },
+  {
+    "msg": "LATENT_SCALE: expected 1",
+    "update": {
+      "LATENT_SCALE": 1
+    }
+  },
+  {
+    "msg": "LATENT_SCALE: expected 2",
+    "update": {
+      "LATENT_SCALE": 2
+    }
+  },
+  {
+    "msg": "LATENT_SCALE: expected 4",
+    "update": {
+      "LATENT_SCALE": 4
+    }
+  },
+  {
+    "msg": "LATENT_SCALE: expected 8",
+    "update": {
+      "LATENT_SCALE": 8
+    }
+  },
+  {
+    "msg": "LATENT_SCALE: expected 16",
+    "update": {
+      "LATENT_SCALE": 16
+    }
+  },
+  {
+    "msg": "LATENT_SCALE: expected 32",
+    "update": {
+      "LATENT_SCALE": 32
+    }
+  },
+  {
+    "msg": "LATENT_SCALE: expected 64",
+    "update": {
+      "LATENT_SCALE": 64
+    }
+  },
+  {
+    "msg": "VISION_ADAPTER: ViT-L/14-grid",
+    "update": {
+      "VISION": "ViT-L/14-grid"
+    }
+  },
+  {
+    "msg": "VISION_ADAPTER: ViT-H/14-grid",
+    "update": {
+      "VISION": "ViT-H/14-grid"
+    }
+  },
+  {
+    "msg": "VISION_ADAPTER: SigLIP-H-map",
+    "update": {
+      "VISION": "SigLIP-H-map"
+    }
+  },
+  {
+    "msg": "VISION_ADAPTER: ViT-B/16",
+    "update": {
+      "VISION": "ViT-B/16"
+    }
+  },
+  {
+    "msg": "VISION_ADAPTER: ViT-G/16",
+    "update": {
+      "VISION": "ViT-G/16"
+    }
+  },
+  {
+    "msg": "KV_DTYPE: f16",
+    "update": {
+      "KV_DTYPE": "f16"
+    }
+  },
+  {
+    "msg": "KV_DTYPE: f32",
+    "update": {
+      "KV_DTYPE": "f32"
+    }
+  },
+  {
+    "msg": "KV_DTYPE: bf16",
+    "update": {
+      "KV_DTYPE": "bf16"
+    }
+  },
+  {
+    "msg": "KV_DTYPE: int8",
+    "update": {
+      "KV_DTYPE": "int8"
+    }
+  },
+  {
+    "msg": "VOCAB: 32000",
+    "update": {
+      "VOCAB": 32000
+    }
+  },
+  {
+    "msg": "VOCAB: 64000",
+    "update": {
+      "VOCAB": 64000
+    }
+  },
+  {
+    "msg": "VOCAB: 50000",
+    "update": {
+      "VOCAB": 50000
+    }
+  },
+  {
+    "msg": "VOCAB: 4096",
+    "update": {
+      "VOCAB": 4096
+    }
+  },
+  {
+    "msg": "VOCAB: 8192",
+    "update": {
+      "VOCAB": 8192
+    }
+  },
+  {
+    "msg": "VOCAB: 12345",
+    "update": {
+      "VOCAB": 12345
+    }
+  },
+  {
+    "msg": "VOCAB: 98765",
+    "update": {
+      "VOCAB": 98765
+    }
+  },
+  {
+    "msg": "VOCAB: 7777",
+    "update": {
+      "VOCAB": 7777
+    }
+  },
+  {
+    "msg": "ROPE: 128",
+    "update": {
+      "ROPE": 128
+    }
+  },
+  {
+    "msg": "ROPE: 256",
+    "update": {
+      "ROPE": 256
+    }
+  },
+  {
+    "msg": "ROPE: 512",
+    "update": {
+      "ROPE": 512
+    }
+  },
+  {
+    "msg": "ROPE: 1024k",
+    "update": {
+      "ROPE": 1024000
+    }
+  },
+  {
+    "msg": "ROPE: 2048k",
+    "update": {
+      "ROPE": 2048000
+    }
+  },
+  {
+    "msg": "ROPE: 4096k",
+    "update": {
+      "ROPE": 4096000
+    }
+  },
+  {
+    "msg": "ROPE: 1000k",
+    "update": {
+      "ROPE": 1000000
+    }
+  },
+  {
+    "msg": "ROPE: 16000k",
+    "update": {
+      "ROPE": 16000000
+    }
+  }
+]

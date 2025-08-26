@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import resource
+import time
 
 
 @dataclass
@@ -37,7 +38,8 @@ class Sandbox:
 
     def __init__(self, limits: Limits | None = None, cache_dir: str | Path | None = None) -> None:
         self.limits = limits or Limits()
-        self.cache: dict[tuple[str, str], tuple[str, Any]] = {}
+        # cache maps (artifact_hash, probe_hash) -> (status, payload, time_ms, engine, op_kind)
+        self.cache: dict[tuple[str, str], tuple[str, Any, float, str, Any]] = {}
         self.cache_file: Path | None = None
         if cache_dir is not None:
             self.cache_file = Path(cache_dir) / "sandbox_cache.json"
@@ -47,7 +49,12 @@ class Sandbox:
                     data = json.loads(self.cache_file.read_text())
                     for k, v in data.items():
                         a, b = k.split(":", 1)
-                        self.cache[(a, b)] = tuple(v)  # type: ignore[assignment]
+                        if isinstance(v, list):
+                            # Support legacy cache entries with fewer fields
+                            while len(v) < 5:
+                                v.append(None)
+                            status, payload, t_ms, eng, opk = v
+                            self.cache[(a, b)] = (status, payload, t_ms or 0.0, eng or "", opk)
             except Exception:  # pragma: no cover - corrupted cache
                 pass
 
@@ -78,9 +85,10 @@ class Sandbox:
             mb = self.limits.vram // (1024 * 1024)
             os.environ["PYTORCH_CUDA_ALLOC_CONF"] = f"max_split_size_mb:{mb}"
         try:
-            q.put(("ok", fn(*args, **kwargs)))
+            q.put(("ok", fn(*args, **kwargs), None))
         except Exception as e:  # pragma: no cover - error path
-            q.put(("err", repr(e)))
+            op_kind = getattr(e, "op_kind", None)
+            q.put(("err", repr(e), op_kind))
 
     # Public API ----------------------------------------------------
     def try_forward(
@@ -88,6 +96,7 @@ class Sandbox:
         fn: Callable[..., Any],
         *args: Any,
         class_key: str | None = None,
+        engine: str | None = None,
         **kwargs: Any,
     ) -> Any:
         """Run ``fn`` under resource limits.
@@ -101,6 +110,8 @@ class Sandbox:
         """
         key: tuple[str, str] | None = None
         base_key: str | None = class_key
+        engine_id = engine or getattr(fn, "__name__", "")
+        start = time.perf_counter()
         if base_key is None and args and isinstance(args[0], (str, os.PathLike, Path)):
             try:
                 artifact_path = Path(args[0])
@@ -116,31 +127,40 @@ class Sandbox:
             probe_signature = hashlib.sha256(sig_src.encode()).hexdigest()
             key = (base_key, probe_signature)
             if key in self.cache:
-                status, payload = self.cache[key]
+                status, payload, t_ms, eng, opk = self.cache[key]
                 if status == "ok":
-                    return payload
-                raise RuntimeError(payload)
+                    return payload, t_ms, eng
+                err = RuntimeError(payload)
+                err.engine = eng
+                err.time_ms = t_ms
+                err.op_kind = opk
+                raise err
 
         q: Queue = Queue()
         p = Process(target=self._worker, args=(fn, q, *args), kwargs=kwargs)
         p.start()
         p.join(self.limits.timeout)
+        duration = (time.perf_counter() - start) * 1000.0
         if p.is_alive():
             p.terminate()
             p.join()
             raise TimeoutError("sandbox timed out")
         if q.empty():
             raise RuntimeError("sandbox produced no result")
-        status, payload = q.get()
+        status, payload, op_kind = q.get()
         if key is not None:
-            self.cache[key] = (status, payload)
+            self.cache[key] = (status, payload, duration, engine_id, op_kind)
             self._save_cache()
         if status == "ok":
-            return payload
-        raise RuntimeError(payload)
+            return payload, duration, engine_id
+        err = RuntimeError(payload)
+        err.engine = engine_id
+        err.time_ms = duration
+        err.op_kind = op_kind
+        raise err
 
     def validate_min_run(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Mapping[str, float]:
-        """Run ``fn`` once more to collect timing and VRAM metrics."""
+        """Run ``fn`` twice to collect timing and stability metrics."""
 
         q: Queue = Queue()
 
@@ -163,8 +183,53 @@ class Sandbox:
             except Exception:  # pragma: no cover - optional dependency
                 pass
 
+            def _collect_dtypes(obj: Any) -> set[str]:
+                if hasattr(obj, "dtype"):
+                    return {str(getattr(obj, "dtype"))}
+                if isinstance(obj, dict):
+                    d: set[str] = set()
+                    for v in obj.values():
+                        d.update(_collect_dtypes(v))
+                    return d
+                if isinstance(obj, (list, tuple, set)):
+                    d: set[str] = set()
+                    for v in obj:
+                        d.update(_collect_dtypes(v))
+                    return d
+                if hasattr(obj, "data"):
+                    return _collect_dtypes(getattr(obj, "data"))
+                return {type(obj).__name__}
+
+            def _has_nan_inf(obj: Any) -> bool:
+                import math
+                if isinstance(obj, dict):
+                    return any(_has_nan_inf(v) for v in obj.values())
+                if isinstance(obj, (list, tuple, set)):
+                    return any(_has_nan_inf(v) for v in obj)
+                if hasattr(obj, "data"):
+                    return _has_nan_inf(getattr(obj, "data"))
+                if isinstance(obj, float):
+                    return math.isnan(obj) or math.isinf(obj)
+                return False
+
+            def _same(a: Any, b: Any) -> bool:
+                if type(a) != type(b):
+                    return False
+                if isinstance(a, dict):
+                    if a.keys() != b.keys():
+                        return False
+                    return all(_same(a[k], b[k]) for k in a)
+                if isinstance(a, (list, tuple)):
+                    return len(a) == len(b) and all(_same(x, y) for x, y in zip(a, b))
+                if hasattr(a, "data") and hasattr(b, "data"):
+                    return _same(a.data, b.data)
+                try:
+                    return a == b
+                except Exception:
+                    return False
+
             try:
-                fn(*args, **kwargs)
+                out1 = fn(*args, **kwargs)
                 duration = (time.perf_counter() - start) * 1000.0
                 vram = 0.0
                 try:
@@ -173,7 +238,16 @@ class Sandbox:
                         vram = torch.cuda.max_memory_allocated() / (1024 * 1024)
                 except Exception:  # pragma: no cover - optional dependency
                     pass
-                q.put(("ok", {"time_ms": duration, "vram_mb": vram}))
+                try:
+                    out2 = fn(*args, **kwargs)
+                except Exception:
+                    q.put(("ok", {"time_ms": duration, "vram_mb": vram, "dtype_ok": False, "stable": False}))
+                    return
+                d1 = _collect_dtypes(out1)
+                d2 = _collect_dtypes(out2)
+                dtype_ok = d1 == d2 and len(d1) == 1
+                stable = (not _has_nan_inf(out1)) and (not _has_nan_inf(out2)) and _same(out1, out2)
+                q.put(("ok", {"time_ms": duration, "vram_mb": vram, "dtype_ok": dtype_ok, "stable": stable}))
             except Exception as e:  # pragma: no cover - error path
                 q.put(("err", repr(e)))
 

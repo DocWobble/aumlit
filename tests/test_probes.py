@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from classifier import parse_reason
+from classifier import constraints_from_error
 from oracles.onnx import _engine_forward as _onnx_engine_forward
 from oracles.llama import _engine_forward as _llama_engine_forward
 
@@ -39,7 +39,7 @@ def test_onnx_probe_failure_classified(tmp_path):
     _save_onnx_linear(3, model)
     with pytest.raises(RuntimeError) as exc:
         _onnx_engine_forward(model, {"x": np.zeros((1, 4), dtype=np.float32)})
-    assert parse_reason(str(exc.value)) == {"TEXT_EMB_d": 3}
+    assert constraints_from_error(str(exc.value)).solve() == {"TEXT_EMB_d": 3}
 
 
 # ---- llama.cpp ------------------------------------------------------
@@ -75,4 +75,4 @@ def test_llama_probe_failure_classified(monkeypatch, tmp_path):
     artifact.write_bytes(b"gguf")
     with pytest.raises(RuntimeError) as exc:
         _llama_engine_forward(artifact, {"token_id": 0})
-    assert parse_reason(str(exc.value)) == {"VOCAB": 32000}
+    assert constraints_from_error(str(exc.value)).solve() == {"VOCAB": 32000}
